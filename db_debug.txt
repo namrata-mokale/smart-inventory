@@ -1,0 +1,12 @@
+--- SUPPLIERS ---
+Supplier ID: 1, Name: flashturn, User ID: 2
+Linked Shops:
+  - Shop ID: 1, Name: onestop
+Catalog Items:
+--------------------
+
+--- ALL SHOPS ---
+Shop ID: 1, Name: onestop, Owner ID: 1
+Shop ID: 2, Name: onestop, Owner ID: 4
+
+--- SUPPLY REQUESTS ---

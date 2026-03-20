@@ -1,0 +1,8 @@
+Supplier: flashturn (ID: 1)
+Linked Shops:
+  - onestop (ID: 1)
+Catalog:
+Supply Requests for this supplier's linked shops:
+--------------------
+
+All Supply Requests in DB:
