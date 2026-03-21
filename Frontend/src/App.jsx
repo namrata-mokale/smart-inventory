@@ -1,3 +1,4 @@
+// Smart Inventory App - Vercel Deployment Trigger
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './auth/Login';
 import Register from './auth/Register';
