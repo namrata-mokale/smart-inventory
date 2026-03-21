@@ -474,7 +474,10 @@ const ShopDashboard = () => {
               fetchBills().catch(e => console.error("fetchBills error", e));
               fetchRequests().catch(e => console.error("fetchRequests error", e));
               
-              setActiveTab('bills');
+              // REDIRECTION FIX: Ensure state updates correctly
+              setTimeout(() => {
+                setActiveTab('bills');
+              }, 100);
           } else {
               // If we see a "relation does not exist" error, it's a database schema issue
               if (data.message && data.message.includes("Database schema issue")) {
