@@ -8,7 +8,7 @@ var vite_config_default = defineConfig({
     strictPort: true,
     proxy: {
       "/api": {
-        target: "http://localhost:5001",
+        target: "https://smart-inventory-backend-pa1g.onrender.com",
         changeOrigin: true,
         secure: false,
         ws: true,

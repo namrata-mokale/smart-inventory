@@ -28,7 +28,7 @@ const AdminDashboard = () => {
     const token = getToken();
     if (!token) return navigate('/login');
     try {
-      const res = await fetch('/api/admin/dashboard', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/admin/dashboard', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setStats(await res.json());
@@ -38,7 +38,7 @@ const AdminDashboard = () => {
   const fetchShops = async () => {
     const token = getToken();
     try {
-      const res = await fetch('/api/admin/shops', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/admin/shops', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setShops(await res.json());
@@ -48,7 +48,7 @@ const AdminDashboard = () => {
   const fetchSuppliers = async () => {
     const token = getToken();
     try {
-      const res = await fetch('/api/admin/suppliers', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/admin/suppliers', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setSuppliers(await res.json());

@@ -100,7 +100,7 @@ const ShopDashboard = () => {
 
   const fetchShopDetails = async () => {
      try {
-       const res = await fetch('/api/auth/me', {
+       const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/auth/me', {
          headers: { 'Authorization': `Bearer ${token}` }
        });
        if (res.ok) {
@@ -114,7 +114,7 @@ const ShopDashboard = () => {
   const [profileError, setProfileError] = useState(null);
   const fetchSalesmanProfile = async () => {
     try {
-      const res = await fetch('/api/salesman/me', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/salesman/me', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -141,7 +141,7 @@ const ShopDashboard = () => {
 
   const fetchSalesmen = async () => {
     try {
-        const res = await fetch('/api/salesman/list', {
+        const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/salesman/list', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) setSalesmen(await res.json());
@@ -150,7 +150,7 @@ const ShopDashboard = () => {
 
   const fetchRationOrders = async () => {
     try {
-      const res = await fetch('/api/customers/shop/ration-orders', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/shop/ration-orders', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setRationOrders(await res.json());
@@ -179,7 +179,7 @@ const ShopDashboard = () => {
   const handleAddSalesman = async (e) => {
     e.preventDefault();
     try {
-        const res = await fetch('/api/salesman/register', {
+        const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/salesman/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(newSalesman)
@@ -273,7 +273,7 @@ const ShopDashboard = () => {
     }
     
     try {
-        const res = await fetch('/api/inventory/transaction', {
+        const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/inventory/transaction', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({
@@ -325,7 +325,7 @@ const ShopDashboard = () => {
 
   const fetchCustomers = async () => {
       try {
-          const res = await fetch('/api/customers/', {
+          const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/', {
               headers: { 'Authorization': `Bearer ${token}` }
           });
           if (res.ok) setCustomers(await res.json());
@@ -350,7 +350,7 @@ const ShopDashboard = () => {
 
       try {
           console.log("DEBUG: Sending request to /api/customers/");
-          const res = await fetch('/api/customers/', {
+          const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ ...newCustomer, phone: phoneDigits })
@@ -384,7 +384,7 @@ const ShopDashboard = () => {
       if(!window.confirm(`Send discount email to ALL customers for ${product.name}?`)) return;
       
       try {
-          const res = await fetch('/api/customers/notify-discount', {
+          const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/notify-discount', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ product_id: product.id })
@@ -401,19 +401,19 @@ const ShopDashboard = () => {
 
   const fetchSuppliers = async () => {
       try {
-          const res = await fetch('/api/supplier/list', { headers: { 'Authorization': `Bearer ${token}` } });
+          const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/list', { headers: { 'Authorization': `Bearer ${token}` } });
           if (res.ok) setSuppliers(await res.json());
       } catch (e) { console.error(e); }
   };
   const fetchLinkedSuppliers = async () => {
       try {
-          const res = await fetch('/api/supplier/linked-for-shop', { headers: { 'Authorization': `Bearer ${token}` } });
+          const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/linked-for-shop', { headers: { 'Authorization': `Bearer ${token}` } });
           if (res.ok) setLinkedSuppliers(await res.json());
       } catch (e) {}
   };
   const fetchRequests = async () => {
       try {
-          const res = await fetch('/api/inventory/requests', { headers: { 'Authorization': `Bearer ${token}` } });
+          const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/inventory/requests', { headers: { 'Authorization': `Bearer ${token}` } });
           if (res.ok) setRequests(await res.json());
       } catch (e) {}
   };
@@ -505,7 +505,7 @@ const ShopDashboard = () => {
 
   const handleAssignSupplier = async (id) => {
       try {
-          const res = await fetch('/api/supplier/assign', {
+          const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/assign', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ supplier_id: id })
@@ -523,7 +523,7 @@ const ShopDashboard = () => {
 
   const fetchHistory = async () => {
       try {
-          const res = await fetch('/api/inventory/history', {
+          const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/inventory/history', {
               headers: { 'Authorization': `Bearer ${token}` }
           });
           if (res.ok) {
@@ -543,7 +543,7 @@ const ShopDashboard = () => {
   const fetchProducts = async () => {
     try {
       console.log("DEBUG: Fetching products for role:", role);
-      const res = await fetch('/api/inventory/', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/inventory/', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       console.log("DEBUG: Product fetch status:", res.status);
@@ -560,14 +560,14 @@ const ShopDashboard = () => {
 
   const fetchWeather = async () => {
     try {
-      const res = await fetch('/api/analytics/weather?city=New York');
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/analytics/weather?city=New York');
       if (res.ok) setWeather(await res.json());
     } catch (e) {}
   };
 
   const fetchExpired = async () => {
     try {
-      const res = await fetch('/api/inventory/expired', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/inventory/expired', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setExpired(await res.json());
     } catch (e) {}
   };
@@ -587,7 +587,7 @@ const ShopDashboard = () => {
 
   const fetchSalesSummary = async () => {
     try {
-      const res = await fetch('/api/inventory/sales/summary', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/inventory/sales/summary', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setSalesSummary(await res.json());
     } catch (e) {}
   };
@@ -602,20 +602,20 @@ const ShopDashboard = () => {
 
   const fetchBills = async () => {
     try {
-      const res = await fetch('/api/billing/shop', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/billing/shop', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setBills(await res.json());
     } catch (e) {}
   };
 
   const fetchAnalytics = async () => {
       try {
-          const res1 = await fetch('/api/analytics/demand', { headers: { 'Authorization': `Bearer ${token}` } });
+          const res1 = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/analytics/demand', { headers: { 'Authorization': `Bearer ${token}` } });
           if (res1.ok) setDemand(await res1.json());
           
-          const res2 = await fetch('/api/analytics/market-basket', { headers: { 'Authorization': `Bearer ${token}` } });
+          const res2 = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/analytics/market-basket', { headers: { 'Authorization': `Bearer ${token}` } });
           if (res2.ok) setRules(await res2.json());
           
-          const res3 = await fetch('/api/inventory/analytics/sales', { headers: { 'Authorization': `Bearer ${token}` } });
+          const res3 = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/inventory/analytics/sales', { headers: { 'Authorization': `Bearer ${token}` } });
           if (res3.ok) {
               const data = await res3.json();
               setChartData({
@@ -630,7 +630,7 @@ const ShopDashboard = () => {
   const handleSale = async (id) => {
       const quantity = saleQuantities[id] || 1;
       try {
-        const res = await fetch('/api/inventory/transaction', {
+        const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/inventory/transaction', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ product_id: id, type: 'SALE', quantity: parseInt(quantity) })
@@ -723,7 +723,7 @@ const ShopDashboard = () => {
       }
 
       try {
-          const res = await fetch('/api/inventory/', {
+          const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/inventory/', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({

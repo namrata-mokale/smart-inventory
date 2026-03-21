@@ -33,7 +33,7 @@ const Register = () => {
 
   const fetchShops = async () => {
     try {
-      const res = await fetch('/api/auth/shops');
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/auth/shops');
       if (res.ok) {
         setShops(await res.json());
       } else {
@@ -91,7 +91,7 @@ const Register = () => {
         shop_ids: formData.role === 'customer' ? [] : [formData.shop_id]
       };
 
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

@@ -43,7 +43,7 @@ const CustomerDashboard = () => {
 
   const fetchMyRationOrders = async () => {
     try {
-      const res = await fetch('/api/customers/my-ration-orders', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/my-ration-orders', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -56,7 +56,7 @@ const CustomerDashboard = () => {
 
   const fetchExistingRations = async () => {
     try {
-      const res = await fetch('/api/customers/monthly-ration', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/monthly-ration', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -167,7 +167,7 @@ const CustomerDashboard = () => {
     if (!selectedShopForRation) return;
     setIsSavingRation(true);
     try {
-      const res = await fetch('/api/customers/monthly-ration', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/monthly-ration', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -205,7 +205,7 @@ const CustomerDashboard = () => {
 
     setIsSubmittingRation(true);
     try {
-      const res = await fetch('/api/customers/submit-ration', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/submit-ration', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -258,7 +258,7 @@ const CustomerDashboard = () => {
 
   const fetchBirthdayOffers = async () => {
     try {
-      const res = await fetch('/api/customers/birthday-offers', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/birthday-offers', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setBirthdayOffers(await res.json());
@@ -267,7 +267,7 @@ const CustomerDashboard = () => {
 
   const fetchOffers = async () => {
     try {
-      const res = await fetch('/api/customers/offers', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/offers', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setOffers(await res.json());
@@ -276,7 +276,7 @@ const CustomerDashboard = () => {
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch('/api/customers/history', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/history', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setHistory(await res.json());
@@ -285,7 +285,7 @@ const CustomerDashboard = () => {
 
   const fetchProfile = async () => {
     try {
-      const res = await fetch('/api/customers/me', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/me', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setProfile(await res.json());
@@ -294,7 +294,7 @@ const CustomerDashboard = () => {
 
   const fetchShops = async () => {
     try {
-      const res = await fetch('/api/customers/all-shops', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/all-shops', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setShops(await res.json());
@@ -304,7 +304,7 @@ const CustomerDashboard = () => {
   const handleLinkShop = async (shopId) => {
     setLinking(true);
     try {
-      const res = await fetch('/api/customers/link-shop', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/customers/link-shop', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

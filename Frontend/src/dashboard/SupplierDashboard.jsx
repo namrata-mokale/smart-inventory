@@ -35,7 +35,7 @@ const SupplierDashboard = () => {
   const fetchRequests = async () => {
     try {
       console.log("DEBUG: Fetching supplier requests...");
-      const res = await fetch('/api/supplier/requests', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/requests', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -50,21 +50,21 @@ const SupplierDashboard = () => {
 
   const fetchCatalog = async () => {
     try {
-      const res = await fetch('/api/supplier/catalog', { headers: { 'Authorization': `Bearer ${token}` }});
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/catalog', { headers: { 'Authorization': `Bearer ${token}` }});
       if (res.ok) setCatalog(await res.json());
     } catch (e) {}
   };
 
   const fetchLinkedShops = async () => {
     try {
-      const res = await fetch('/api/supplier/linked-shops', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/linked-shops', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setLinkedShops(await res.json());
     } catch (e) {}
   };
 
   const fetchBills = async () => {
     try {
-      const res = await fetch('/api/billing/supplier', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/billing/supplier', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setBills(await res.json());
     } catch (e) {}
   };
@@ -90,7 +90,7 @@ const SupplierDashboard = () => {
         discount_percent: parseFloat(newItem.discount_percent || '0'),
         variations: newItem.variations
       };
-      const res = await fetch('/api/supplier/catalog', {
+      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/catalog', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(body)
