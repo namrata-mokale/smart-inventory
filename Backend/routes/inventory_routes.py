@@ -189,70 +189,62 @@ def record_transaction():
 
         db.session.add(new_tx)
         db.session.commit()
-        return jsonify({"message": "Success", "id": new_tx.id}), 201
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"message": f"Server Error: {str(e)}"}), 500
         
-        # Check for Low Stock (Post-Commit)
+        # --- TRIGGER LOW STOCK CHECK AFTER COMMIT ---
         try:
-            # Re-fetch or refresh product to ensure we have latest stock in current session
+            # Refresh to get latest DB state
             db.session.refresh(product)
+            print(f"DEBUG: Starting Low Stock check for {product.name} (ID: {product.id})")
             
             # 1. Check for individual variation low stock (Primary logic)
             has_variations = len(product.unit_options) > 0
-            for opt in product.unit_options:
-                if opt.stock_quantity <= opt.reorder_level:
-                    # Check for existing request for this variation specifically (via notes)
-                    active_statuses = ['Pending', 'Quotes Received', 'Awaiting Approval', 'Awaiting Selection', 'Awaiting Payment', 'Paid', 'Shipped']
-                    existing_var_req = SupplyRequest.query.filter(
-                        SupplyRequest.product_id == product.id,
-                        SupplyRequest.status.in_(active_statuses),
-                        SupplyRequest.notes.like(f"%Auto-restock for {opt.unit_value} {opt.unit_type}%")
-                    ).first()
-                    
-                    if not existing_var_req:
-                        final_supplier_id = product.supplier_id
-                        if not final_supplier_id:
-                            shop_obj = Shop.query.get(product.shop_id)
-                            if shop_obj and getattr(shop_obj, 'suppliers', None) and len(shop_obj.suppliers) > 0:
-                                final_supplier_id = shop_obj.suppliers[0].id
+            if has_variations:
+                for opt in product.unit_options:
+                    print(f"DEBUG: Checking variation {opt.unit_value} {opt.unit_type}: Stock={opt.stock_quantity}, Reorder={opt.reorder_level}")
+                    if opt.stock_quantity <= opt.reorder_level:
+                        # Check for existing request for this variation specifically (via notes)
+                        active_statuses = ['Pending', 'Quotes Received', 'Awaiting Approval', 'Awaiting Selection', 'Awaiting Payment', 'Paid', 'Shipped']
+                        existing_var_req = SupplyRequest.query.filter(
+                            SupplyRequest.product_id == product.id,
+                            SupplyRequest.status.in_(active_statuses),
+                            SupplyRequest.notes.like(f"%Auto-restock for {opt.unit_value} {opt.unit_type}%")
+                        ).first()
                         
-                        new_var_req = SupplyRequest(
-                            shop_id=product.shop_id,
-                            product_id=product.id,
-                            supplier_id=final_supplier_id,
-                            quantity_needed=opt.restock_quantity,
-                            unit_type=opt.unit_type,
-                            unit_value=opt.unit_value,
-                            reason='Low Stock (Variation)',
-                            notes=f"Auto-restock for {opt.unit_value} {opt.unit_type} pack (Reorder Level: {opt.reorder_level}, Current Stock: {opt.stock_quantity})"
-                        )
-                        db.session.add(new_var_req)
-                        db.session.commit()
-                        print(f"DEBUG: Created Supply Request for variation {opt.unit_value} {opt.unit_type} (Qty: {opt.restock_quantity})")
-                    else:
-                        print(f"DEBUG: Variation request for {opt.unit_value} {opt.unit_type} already exists (ID: {existing_var_req.id})")
+                        if not existing_var_req:
+                            final_supplier_id = product.supplier_id
+                            if not final_supplier_id:
+                                shop_obj = Shop.query.get(product.shop_id)
+                                if shop_obj and getattr(shop_obj, 'suppliers', None) and len(shop_obj.suppliers) > 0:
+                                    final_supplier_id = shop_obj.suppliers[0].id
+                            
+                            new_var_req = SupplyRequest(
+                                shop_id=product.shop_id,
+                                product_id=product.id,
+                                supplier_id=final_supplier_id,
+                                quantity_needed=opt.restock_quantity,
+                                unit_type=opt.unit_type,
+                                unit_value=opt.unit_value,
+                                reason='Low Stock (Variation)',
+                                notes=f"Auto-restock for {opt.unit_value} {opt.unit_type} pack (Reorder Level: {opt.reorder_level}, Current Stock: {opt.stock_quantity})"
+                            )
+                            db.session.add(new_var_req)
+                            db.session.commit()
+                            print(f"DEBUG: Created Supply Request for variation {opt.unit_value} {opt.unit_type} (Qty: {opt.restock_quantity})")
+                            
+                            # Notify Suppliers
+                            shop_obj = Shop.query.get(product.shop_id)
+                            notify_suppliers_for_request(shop_obj, product, opt.restock_quantity, opt.unit_type, opt.unit_value)
+                        else:
+                            print(f"DEBUG: Variation request for {opt.unit_value} {opt.unit_type} already exists (ID: {existing_var_req.id})")
 
             # 2. Fallback check for overall product low stock ONLY if no variations exist
-            if not has_variations:
-                # Robust fallback for levels if they are None in DB
+            else:
                 reorder_lvl = product.reorder_level if product.reorder_level is not None else 20
-                max_lvl = product.max_level if product.max_level is not None else 100
                 restock_quantity = product.restock_quantity if product.restock_quantity is not None else 50
                 
-                print(f"DEBUG: Checking Stock. Product: {product.name}, Stock: {product.stock_quantity}, Reorder Lvl: {reorder_lvl}")
+                print(f"DEBUG: Checking main stock. Product: {product.name}, Stock: {product.stock_quantity}, Reorder Lvl: {reorder_lvl}")
                 
                 if product.stock_quantity <= reorder_lvl:
-                    # Trigger Notification
-                    msg = f"Alert: Product {product.name} (SKU: {product.sku}) is low on stock. Current: {product.stock_quantity}. Reorder Level: {reorder_lvl}"
-                    print(f"TRIGGER NOTIFICATION: {msg}")
-                    
-                    # Create Supply Request automatically
-                    restock_qty = restock_quantity if restock_quantity > 0 else (max_lvl - product.stock_quantity)
-                    if restock_qty <= 0: restock_qty = 50 
-                    
                     # Check for any active request
                     active_statuses = ['Pending', 'Quotes Received', 'Awaiting Approval', 'Awaiting Selection', 'Awaiting Payment', 'Paid', 'Shipped']
                     existing_req = SupplyRequest.query.filter(
@@ -261,10 +253,8 @@ def record_transaction():
                     ).first()
                     
                     if not existing_req:
-                        final_supplier_id = None
-                        if product.supplier_id:
-                            final_supplier_id = product.supplier_id
-                        else:
+                        final_supplier_id = product.supplier_id
+                        if not final_supplier_id:
                             shop_obj = Shop.query.get(product.shop_id)
                             if shop_obj and getattr(shop_obj, 'suppliers', None) and len(shop_obj.suppliers) > 0:
                                 final_supplier_id = shop_obj.suppliers[0].id
@@ -273,66 +263,73 @@ def record_transaction():
                             shop_id=product.shop_id,
                             product_id=product.id,
                             supplier_id=final_supplier_id,
-                            quantity_needed=restock_qty,
+                            quantity_needed=restock_quantity,
                             reason='Low Stock'
                         )
                         db.session.add(new_req)
                         db.session.commit()
-                        print(f"DEBUG: Created Supply Request ID {new_req.id} for {product.name} (Qty: {restock_qty})")
-                    
-                    # Notify all linked suppliers for bidding (quote submission)
-                    shop_obj = Shop.query.get(product.shop_id)
-                    notified = 0
-                    
-                    def notify_supplier(s, shop_name, p_name, p_sku, qty):
-                        try:
-                            if not s.user or not s.user.email:
-                                print(f"DEBUG: Supplier {s.id} has no email")
-                                return False
-                            email_body = f"""
-                            Dear {s.contact_person or 'Supplier'},
-                            
-                            A restock request has been generated for:
-                            Shop: {shop_name}
-                            Product: {p_name} (SKU: {p_sku})
-                            Quantity Needed: {qty}
-                            Reason: Low Stock
-                            
-                            Please login to the Supplier Portal to submit your quote.
-                            """
-                            print(f"DEBUG: Sending restock email to {s.user.email}")
-                            send_email(s.user.email, "Restock Request - Submit Quote", email_body)
-                            return True
-                        except Exception as e:
-                            print(f"Failed to notify supplier {s.id}: {e}")
-                            return False
+                        print(f"DEBUG: Created Supply Request ID {new_req.id} for {product.name} (Qty: {restock_quantity})")
+                        
+                        # Notify Suppliers
+                        shop_obj = Shop.query.get(product.shop_id)
+                        notify_suppliers_for_request(shop_obj, product, restock_quantity)
 
-                    shop_name = shop_obj.name if shop_obj else f"Shop #{product.shop_id}"
-                    
-                    if shop_obj and getattr(shop_obj, 'suppliers', None):
-                        for s in shop_obj.suppliers:
-                            if notify_supplier(s, shop_name, product.name, product.sku, restock_qty):
-                                notified += 1
-                    
-                    if notified == 0:
-                        # Fallback: check ALL suppliers (not just linked ones)
-                        print("DEBUG: No linked suppliers notified, searching all suppliers with catalog match")
-                        all_suppliers = Supplier.query.all()
-                        for s in all_suppliers:
-                            if find_catalog_match(s.id, product.sku, product.name):
-                                if notify_supplier(s, shop_name, product.name, product.sku, restock_qty):
-                                    notified += 1
-                    print(f"DEBUG: Total suppliers notified: {notified}")
         except Exception as low_stock_err:
+            import traceback
             print(f"ERROR in low stock check: {low_stock_err}")
+            traceback.print_exc()
 
-        return jsonify({"message": "Transaction recorded successfully", "status": "success"}), 200
-        
+        return jsonify({"message": "Success", "id": new_tx.id}), 201
+
     except Exception as e:
         db.session.rollback()
         import traceback
         print(traceback.format_exc())
-        return jsonify({"message": f"Server Error: {str(e)}", "status": "error"}), 500
+        return jsonify({"message": f"Server Error: {str(e)}"}), 500
+
+def notify_suppliers_for_request(shop_obj, product, qty, unit_type=None, unit_value=None):
+    """Helper to notify all relevant suppliers about a new restock request."""
+    notified = 0
+    shop_name = shop_obj.name if shop_obj else f"Shop #{product.shop_id}"
+    p_display = f"{product.name}"
+    if unit_type and unit_value:
+        p_display += f" ({unit_value} {unit_type})"
+
+    def notify_s(s):
+        try:
+            if not s.user or not s.user.email: return False
+            email_body = f"""
+            Dear {s.contact_person or 'Supplier'},
+            
+            A new restock request has been generated for:
+            Shop: {shop_name}
+            Product: {p_display} (SKU: {product.sku})
+            Quantity Needed: {qty}
+            Reason: Low Stock
+            
+            Please login to the Supplier Portal to submit your quote.
+            """
+            print(f"DEBUG: Sending restock email to {s.user.email}")
+            send_email(s.user.email, "New Restock Request - Action Required", email_body)
+            return True
+        except Exception as e:
+            print(f"Failed to notify supplier {s.id}: {e}")
+            return False
+
+    # 1. Notify Linked Suppliers
+    if shop_obj and getattr(shop_obj, 'suppliers', None):
+        for s in shop_obj.suppliers:
+            if notify_s(s): notified += 1
+    
+    # 2. Fallback: Search all suppliers if none linked or notified
+    if notified == 0:
+        print("DEBUG: No linked suppliers notified, searching all suppliers with catalog match")
+        all_suppliers = Supplier.query.all()
+        for s in all_suppliers:
+            if find_catalog_match(s.id, product.sku, product.name):
+                if notify_s(s): notified += 1
+    
+    print(f"DEBUG: Total suppliers notified for request: {notified}")
 
 @inventory_bp.route('/', methods=['GET'])
 @jwt_required()
