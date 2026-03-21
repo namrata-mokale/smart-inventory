@@ -23,21 +23,27 @@ def create_app():
     db.init_app(app)
     Migrate(app, db)
     
-    # EXTREMELY PERMISSIVE CORS FOR PRODUCTION STABILITY
-    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+    # MOST BASIC CORS POSSIBLE
+    CORS(app)
     
+    @app.before_request
+    def log_request_info():
+        # Only log in debug mode to avoid cluttering production logs too much, but for now we need it
+        print(f"DEBUG: Request: {app.request.method} {app.request.url}")
+
     @app.after_request
     def add_cors_headers(response):
         response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
-        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = '*'
         response.headers['Access-Control-Max-Age'] = '86400'
         return response
 
     # Global error handler to ensure CORS headers are sent even on 500 errors
     @app.errorhandler(Exception)
     def handle_exception(e):
-        from flask import jsonify
+        from flask import jsonify, request
+        print(f"ERROR: Backend crash on {request.method} {request.url}: {str(e)}")
         response = jsonify({"message": f"Backend Error: {str(e)}"})
         response.status_code = 500
         # Direct assignment to guarantee headers on error
