@@ -129,7 +129,7 @@ const SupplierDashboard = () => {
       const qi = quoteInputs[reqId] || {};
       const discount_percent = parseFloat(qi.discount_percent || '0');
       try {
-          const res = await fetch(`/api/supplier/requests/${reqId}/quote`, {
+          const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/supplier/requests/${reqId}/quote`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ discount_percent })
@@ -153,7 +153,7 @@ const SupplierDashboard = () => {
       }
 
       try {
-          const res = await fetch(`/api/supplier/requests/${selectedRequestId}/update`, {
+          const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/supplier/requests/${selectedRequestId}/update`, {
               method: 'POST',
               headers: { 
                   'Content-Type': 'application/json',
@@ -180,7 +180,7 @@ const SupplierDashboard = () => {
       }
 
       try {
-          const res = await fetch(`/api/supplier/requests/${id}/update`, {
+          const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/supplier/requests/${id}/update`, {
               method: 'POST',
               headers: { 
                   'Content-Type': 'application/json',
