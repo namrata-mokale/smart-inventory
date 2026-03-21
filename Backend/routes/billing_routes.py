@@ -50,51 +50,74 @@ def list_shop_bills():
 @billing_bp.route('/pay/<int:bill_id>', methods=['POST'])
 @jwt_required()
 def pay_bill(bill_id):
-    current_user = get_jwt_identity()
-    shop = Shop.query.filter_by(owner_id=current_user['id']).first()
-    if not shop:
-        return jsonify({"message": "Shop not found"}), 404
+    try:
+        current_user = get_jwt_identity()
+        print(f"DEBUG: pay_bill called for bill {bill_id} by user {current_user['id']}")
         
-    bill = SupplierBill.query.get_or_404(bill_id)
-    if bill.shop_id != shop.id:
-        return jsonify({"message": "Unauthorized"}), 403
-        
-    if bill.status != 'Awaiting Payment':
-        return jsonify({"message": f"Bill is in {bill.status} status and cannot be paid."}), 400
-        
-    # Simulate payment processing
-    bill.status = 'Paid'
-    
-    # Update corresponding supply request status to 'Paid' (Ready to Ship)
-    from models import SupplyRequest
-    req = SupplyRequest.query.get(bill.supply_request_id)
-    if req:
-        req.status = 'Paid'
-        
-        # Notify supplier of payment
-        supplier = Supplier.query.get(bill.supplier_id)
-        if supplier and supplier.user and supplier.user.email:
-            subject = f"Payment Received for Order #{req.id}"
-            content = f"Payment of ₹{bill.total:.2f} has been received for {req.product.name}.\n\n" \
-                      f"Please login to your dashboard and ship the order."
-            try:
-                send_email(supplier.user.email, subject, content)
-            except Exception: pass
+        shop = Shop.query.filter_by(owner_id=current_user['id']).first()
+        if not shop:
+            # Fallback for salesman
+            from models import Salesman
+            salesman = Salesman.query.filter_by(user_id=current_user['id']).first()
+            if salesman:
+                shop = Shop.query.get(salesman.shop_id)
             
+        if not shop:
+            print("DEBUG: Shop not found for user")
+            return jsonify({"message": "Shop not found"}), 404
+            
+        bill = SupplierBill.query.get_or_404(bill_id)
+        if bill.shop_id != shop.id:
+            print(f"DEBUG: Unauthorized - Bill shop {bill.shop_id} != User shop {shop.id}")
+            return jsonify({"message": "Unauthorized"}), 403
+            
+        if bill.status != 'Awaiting Payment' and bill.status != 'Pending':
+            print(f"DEBUG: Bill status is {bill.status}, cannot pay")
+            return jsonify({"message": f"Bill is in {bill.status} status and cannot be paid."}), 400
+            
+        # Simulate payment processing
+        bill.status = 'Paid'
+        
+        # Update corresponding supply request status to 'Paid' (Ready to Ship)
+        from models import SupplyRequest
+        req = SupplyRequest.query.get(bill.supply_request_id)
+        supplier = None
+        product = Product.query.get(bill.product_id)
+        
+        if req:
+            req.status = 'Paid'
+            supplier = Supplier.query.get(bill.supplier_id)
+            
+            # Notify supplier of payment
+            if supplier and supplier.user and supplier.user.email:
+                subject = f"Payment Received for Order #{req.id}"
+                content = f"Payment of ₹{bill.total:.2f} has been received for {product.name if product else 'Order'}.\n\n" \
+                          f"Please login to your dashboard and ship the order."
+                try:
+                    send_email(supplier.user.email, subject, content)
+                except Exception as e: 
+                    print(f"DEBUG: Supplier notification failed: {e}")
+                
         # Notify shop owner of payment confirmation
-        owner = User.query.get(shop.owner_id)
-        if owner and owner.email:
-            subject = f"Payment Confirmation - Order #{req.id}"
-            content = f"Your payment of ₹{bill.total:.2f} for {req.product.name} has been processed successfully.\n\n" \
-                      f"Supplier: {supplier.company_name if supplier else 'N/A'}\n" \
-                      f"The supplier has been notified and will ship your order shortly."
-            try:
+        try:
+            owner = User.query.get(shop.owner_id)
+            if owner and owner.email:
+                subject = f"Payment Confirmation - Order #{req.id if req else 'N/A'}"
+                content = f"Your payment of ₹{bill.total:.2f} for {product.name if product else 'Order'} has been processed successfully.\n\n" \
+                          f"Supplier: {supplier.company_name if supplier and hasattr(supplier, 'company_name') else 'N/A'}\n" \
+                          f"The supplier has been notified and will ship your order shortly."
                 send_email(owner.email, subject, content)
-            except Exception: pass
-            
-    db.session.commit()
-    
-    return jsonify({"message": "Payment successful", "status": "Paid"}), 200
+        except Exception as e:
+            print(f"DEBUG: Shop owner notification failed: {e}")
+                
+        db.session.commit()
+        print(f"DEBUG: Payment successful for bill {bill_id}")
+        return jsonify({"message": "Payment successful", "status": "Paid"}), 200
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({"message": f"Server Error during payment: {str(e)}"}), 500
 
 @billing_bp.route('/supplier', methods=['GET'])
 @jwt_required()
