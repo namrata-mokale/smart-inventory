@@ -23,14 +23,23 @@ def create_app():
     db.init_app(app)
     Migrate(app, db)
     
-    # PERMISSIVE CORS FOR ALL ENVIRONMENTS
+    # EXTREMELY PERMISSIVE CORS FOR PRODUCTION STABILITY
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
     
     @app.after_request
-    def after_request(response):
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS')
+    def add_cors_headers(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS'
+        return response
+
+    # Global error handler to ensure CORS headers are sent even on 500 errors
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        from flask import jsonify
+        response = jsonify({"message": f"Backend Error: {str(e)}"})
+        response.status_code = 500
+        response.headers['Access-Control-Allow-Origin'] = '*'
         return response
 
     JWTManager(app)
