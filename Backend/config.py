@@ -25,6 +25,13 @@ class Config:
     else:
         print(f"DEBUG: Using SQLite database at: {SQLALCHEMY_DATABASE_URI}")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Engine Options to prevent SSL SYSCALL EOF errors on Render/PostgreSQL
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_recycle": 280,
+        "pool_pre_ping": True,
+    }
+
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-key-change-in-prod'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
     
