@@ -422,6 +422,10 @@ const ShopDashboard = () => {
           alert("Invalid Quote ID");
           return;
       }
+      if (!token) {
+          alert("Your session has expired. Please login again.");
+          return;
+      }
       try {
           const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/inventory/quotes/${quoteId}/accept`, { 
               method: 'POST', 
@@ -429,7 +433,7 @@ const ShopDashboard = () => {
                   'Authorization': `Bearer ${token}`,
                   'Content-Type': 'application/json'
               },
-              body: JSON.stringify({}) // Send empty body to ensure preflight and server handling
+              body: JSON.stringify({ accept: true }) // Send a dummy body to ensure preflight and server handling
           });
           
           let data;
@@ -450,7 +454,7 @@ const ShopDashboard = () => {
           }
       } catch (e) { 
           console.error('Accept quote error:', e);
-          alert(`Network error: ${e.message}. Please check if the backend is reachable.`); 
+          alert(`Network error: ${e.message}. This might be a CORS or backend connection issue.`); 
       }
   };
 

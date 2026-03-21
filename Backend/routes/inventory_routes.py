@@ -1109,21 +1109,17 @@ def get_quotes_for_request(req_id):
         })
     return jsonify(res), 200
 
-@inventory_bp.route('/quotes/<int:quote_id>/accept', methods=['POST', 'OPTIONS'])
-@jwt_required(optional=True)
+@inventory_bp.route('/quotes/<int:quote_id>/accept', methods=['POST'])
+@jwt_required()
 def accept_quote(quote_id):
-    if request.method == 'OPTIONS':
-        return jsonify({"success": True}), 200
-        
-    from flask_jwt_extended import get_jwt
-    if not get_jwt():
-        return jsonify({"message": "Missing Authorization Header"}), 401
-        
     try:
         current_user = get_jwt_identity()
-        shop = Shop.query.filter_by(owner_id=current_user['id']).first()
+        shop_id = get_shop_id_for_user(current_user)
+        shop = Shop.query.get(shop_id)
+        
         if not shop:
             return jsonify({"message": "Shop not found"}), 404
+            
         q = SupplierQuote.query.get(quote_id)
         if not q or q.shop_id != shop.id:
             return jsonify({"message": "Quote not found"}), 404
