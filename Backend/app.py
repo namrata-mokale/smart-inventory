@@ -1,5 +1,5 @@
 # Smart Inventory Backend - Render Deployment Trigger
-from flask import Flask
+from flask import Flask, request, make_response, jsonify
 from flask_cors import CORS
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
@@ -30,7 +30,6 @@ def create_app():
     @app.before_request
     def handle_preflight():
         if request.method == "OPTIONS":
-            from flask import make_response
             response = make_response()
             response.headers['Access-Control-Allow-Origin'] = '*'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
@@ -48,7 +47,6 @@ def create_app():
     # Global error handler to ensure CORS headers are sent even on 500 errors
     @app.errorhandler(Exception)
     def handle_exception(e):
-        from flask import jsonify, request
         import traceback
         print(f"ERROR: Backend crash on {request.method} {request.url}")
         traceback.print_exc()
