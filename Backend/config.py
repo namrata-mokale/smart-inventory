@@ -11,10 +11,19 @@ class Config:
     
     # Handle DATABASE_URL for PostgreSQL (Heroku/Render/Neon often use postgres://)
     db_url = os.environ.get('DATABASE_URL')
-    if db_url and db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    if db_url:
+        print(f"DEBUG: Found DATABASE_URL in environment.")
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+    else:
+        print("DEBUG: DATABASE_URL not found. Falling back to local SQLite.")
     
     SQLALCHEMY_DATABASE_URI = db_url or 'sqlite:///' + os.path.join(basedir, 'instance', 'inventory.db')
+    
+    if "postgresql" in SQLALCHEMY_DATABASE_URI:
+        print("DEBUG: Using PostgreSQL database connection.")
+    else:
+        print(f"DEBUG: Using SQLite database at: {SQLALCHEMY_DATABASE_URI}")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-key-change-in-prod'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)

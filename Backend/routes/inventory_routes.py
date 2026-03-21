@@ -1037,39 +1037,67 @@ def get_quotes_for_request(req_id):
         })
     return jsonify(res), 200
 
+@inventory_bp.route('/diagnostic/db-sync', methods=['POST'])
+@jwt_required()
+def force_db_sync():
+    """Manual trigger to create tables if they are missing."""
+    try:
+        current_user = get_jwt_identity()
+        if current_user.get('role') != 'admin' and current_user.get('role') != 'shop_owner':
+            return jsonify({"message": "Unauthorized"}), 403
+            
+        from models import db
+        db.create_all()
+        return jsonify({"message": "Database tables creation triggered successfully"}), 200
+    except Exception as e:
+        return jsonify({"message": f"Sync Error: {str(e)}"}), 500
+
 @inventory_bp.route('/quotes/<int:quote_id>/accept', methods=['POST'])
 @jwt_required()
 def accept_quote(quote_id):
     try:
         current_user = get_jwt_identity()
-        shop_id = get_shop_id_for_user(current_user)
-        shop = Shop.query.get(shop_id)
+        print(f"DEBUG: accept_quote called by user {current_user['id']} for quote {quote_id}")
         
+        shop_id = get_shop_id_for_user(current_user)
+        if not shop_id:
+            return jsonify({"message": "Shop not found for this user. Please ensure you have registered a shop profile."}), 404
+            
+        shop = Shop.query.get(shop_id)
         if not shop:
-            return jsonify({"message": "Shop not found"}), 404
+            return jsonify({"message": f"Shop ID {shop_id} not found in database"}), 404
             
         q = SupplierQuote.query.get(quote_id)
-        if not q or q.shop_id != shop.id:
-            return jsonify({"message": "Quote not found"}), 404
+        if not q:
+            return jsonify({"message": f"Quote #{quote_id} not found"}), 404
+            
+        if q.shop_id != shop.id:
+            return jsonify({"message": "Unauthorized: This quote belongs to another shop"}), 403
+            
         req = SupplyRequest.query.get(q.supply_request_id)
-        if not req or req.shop_id != shop.id:
-            return jsonify({"message": "Request not found"}), 404
+        if not req:
+            return jsonify({"message": "Original restock request not found"}), 404
+            
+        if req.shop_id != shop.id:
+            return jsonify({"message": "Unauthorized: This request belongs to another shop"}), 403
         
-        # Mark other quotes for this request as Rejected
-        other_quotes = SupplierQuote.query.filter(
-            SupplierQuote.supply_request_id == req.id,
-            SupplierQuote.id != q.id
-        ).all()
-        for oq in other_quotes:
-            oq.status = 'Rejected'
-        
+        # 1. Mark other quotes for this request as Rejected
+        try:
+            other_quotes = SupplierQuote.query.filter(
+                SupplierQuote.supply_request_id == req.id,
+                SupplierQuote.id != q.id
+            ).all()
+            for oq in other_quotes:
+                oq.status = 'Rejected'
+        except Exception as e:
+            print(f"DEBUG: Error rejecting other quotes: {e}")
+
+        # 2. Accept this quote
         q.status = 'Accepted'
         req.supplier_id = q.supplier_id
-        
-        # Update request status based on acceptance
         req.status = 'Awaiting Payment'
         
-        # Create bill with supply_request_id
+        # 3. Create bill
         bill = SupplierBill(
             shop_id=shop.id,
             supplier_id=q.supplier_id,
@@ -1087,49 +1115,57 @@ def accept_quote(quote_id):
         )
         db.session.add(bill)
         
-        # Notify shop owner to pay and supplier about acceptance
+        # 4. Notifications
         owner = User.query.get(shop.owner_id)
         supplier_obj = Supplier.query.get(q.supplier_id)
         supplier_name = supplier_obj.company_name if supplier_obj else "Supplier"
         
         if owner and owner.email:
-            subject = f"Restock Quote Accepted - Payment Required for {req.product.name}"
-            content = f"You have accepted a quote from {supplier_name}.\n\n" \
-                      f"Order Details:\n" \
-                      f"Product: {req.product.name}\n" \
-                      f"Quantity: {req.quantity_needed}\n" \
-                      f"Total (Excl. GST): ₹{q.total:.2f}\n" \
-                      f"GST (18%): ₹{q.gst_amount:.2f}\n" \
-                      f"Grand Total: ₹{q.grand_total:.2f}\n\n" \
-                      f"Please login and complete the payment to proceed with the restock."
             try:
+                subject = f"Restock Quote Accepted - Payment Required for {req.product.name}"
+                content = f"You have accepted a quote from {supplier_name}.\n\n" \
+                          f"Order Details:\n" \
+                          f"Product: {req.product.name}\n" \
+                          f"Quantity: {req.quantity_needed}\n" \
+                          f"Total (Excl. GST): ₹{q.total:.2f}\n" \
+                          f"GST (18%): ₹{q.gst_amount:.2f}\n" \
+                          f"Grand Total: ₹{q.grand_total:.2f}\n\n" \
+                          f"Please login and complete the payment to proceed with the restock."
                 send_email(owner.email, subject, content)
-            except Exception: pass
+            except Exception as e:
+                print(f"DEBUG: Failed to send owner email: {e}")
 
         if supplier_obj and supplier_obj.user and supplier_obj.user.email:
-            subject = f"Your Quote for {req.product.name} was Accepted!"
-            content = f"Congratulations! Your quote for {req.product.name} has been accepted by {shop.name}.\n\n" \
-                       f"Order Details:\n" \
-                       f"Shop: {shop.name}\n" \
-                       f"Product: {req.product.name}\n" \
-                       f"Quantity: {req.quantity_needed}\n" \
-                       f"Total (Excl. GST): ₹{q.total:.2f}\n" \
-                       f"GST (18%): ₹{q.gst_amount:.2f}\n" \
-                       f"Grand Total: ₹{q.grand_total:.2f}\n\n" \
-                       f"You will be notified once the payment is completed so you can ship the order."
             try:
+                subject = f"Your Quote for {req.product.name} was Accepted!"
+                content = f"Congratulations! Your quote for {req.product.name} has been accepted by {shop.name}.\n\n" \
+                           f"Order Details:\n" \
+                           f"Shop: {shop.name}\n" \
+                           f"Product: {req.product.name}\n" \
+                           f"Quantity: {req.quantity_needed}\n" \
+                           f"Total (Excl. GST): ₹{q.total:.2f}\n" \
+                           f"GST (18%): ₹{q.gst_amount:.2f}\n" \
+                           f"Grand Total: ₹{q.grand_total:.2f}\n\n" \
+                           f"You will be notified once the payment is completed so you can ship the order."
                 send_email(supplier_obj.user.email, subject, content)
-            except Exception: pass
+            except Exception as e:
+                print(f"DEBUG: Failed to send supplier email: {e}")
 
         db.session.commit()
         print(f"DEBUG: Quote {q.id} accepted. Bill {bill.id} generated.")
         return jsonify({"message": "Quote accepted and bill generated", "bill_id": bill.id}), 200
+        
     except Exception as e:
         db.session.rollback()
-        print(f"CRITICAL ERROR in accept_quote: {str(e)}")
         import traceback
+        error_msg = str(e)
+        # Check for specific DB errors to provide better messages
+        if "relation" in error_msg and "does not exist" in error_msg:
+            error_msg = "Database schema issue: Some tables are missing. Please contact support or try again later."
+            
+        print(f"CRITICAL ERROR in accept_quote: {str(e)}")
         traceback.print_exc()
-        return jsonify({"message": f"Server Error: {str(e)}"}), 500
+        return jsonify({"message": f"Server Error: {error_msg}"}), 500
 
 @inventory_bp.route('/bills/<int:bill_id>/retry-restock', methods=['POST'])
 @jwt_required()

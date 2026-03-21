@@ -27,11 +27,14 @@ def create_app():
         r"/*": {
             "origins": "*",
             "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Origin"]
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
         }
     })
     
     JWTManager(app)
+    
+    # IMPORT MODELS TO ENSURE THEY ARE REGISTERED WITH METADATA
+    from models import User, Shop, Supplier, Salesman, Product, Transaction, SupplyRequest, SupplierBill, SupplierQuote, ExpiredProduct, Customer, BirthdayOffer
     
     # Register Blueprints
     from routes.auth_routes import auth_bp
