@@ -189,6 +189,15 @@ def create_app():
         t.start()
 
     start_expiry_background(app)
+    
+    # Initialize database tables if they don't exist
+    with app.app_context():
+        try:
+            db.create_all()
+            print("Database tables initialized (PostgreSQL/SQLite).")
+        except Exception as e:
+            print(f"Error during database initialization: {e}")
+            
     return app
 
 if __name__ == '__main__':
