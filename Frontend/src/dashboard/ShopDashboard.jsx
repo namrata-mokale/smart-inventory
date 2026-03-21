@@ -537,7 +537,7 @@ const ShopDashboard = () => {
           // Simulate network delay
           await new Promise(resolve => setTimeout(resolve, 2000));
           
-          const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/billing/pay/${selectedBill.id}`, {
+          const res = await fetch(`${API_BASE_URL}/billing/pay/${selectedBill.id}`, {
               method: 'POST',
               headers: { 
                   'Authorization': `Bearer ${token}`,
