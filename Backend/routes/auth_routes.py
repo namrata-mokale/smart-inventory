@@ -116,20 +116,29 @@ def register():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    user = User.query.filter_by(email=data['email']).first()
-    
-    if user and check_password_hash(user.password_hash, data['password']):
-        shop_id = None
-        if user.role == 'shop_owner' and user.shop:
-            shop_id = user.shop.id
-        elif user.role == 'salesman' and user.salesman_profile:
-            shop_id = user.salesman_profile.shop_id
+    try:
+        data = request.get_json()
+        if not data or 'email' not in data or 'password' not in data:
+            return jsonify({"message": "Email and password are required"}), 400
             
-        access_token = create_access_token(identity={'id': user.id, 'role': user.role, 'shop_id': shop_id})
-        return jsonify(access_token=access_token, role=user.role, shop_id=shop_id), 200
+        user = User.query.filter_by(email=data['email']).first()
         
-    return jsonify({"message": "Invalid credentials"}), 401
+        if user and check_password_hash(user.password_hash, data['password']):
+            shop_id = None
+            if user.role == 'shop_owner' and user.shop:
+                shop_id = user.shop.id
+            elif user.role == 'salesman' and user.salesman_profile:
+                shop_id = user.salesman_profile.shop_id
+                
+            access_token = create_access_token(identity={'id': user.id, 'role': user.role, 'shop_id': shop_id})
+            return jsonify(access_token=access_token, role=user.role, shop_id=shop_id), 200
+            
+        return jsonify({"message": "Invalid credentials"}), 401
+    except Exception as e:
+        print(f"ERROR in login: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"message": f"Server error during login: {str(e)}"}), 500
 
 @auth_bp.route('/me', methods=['GET'])
 @jwt_required()

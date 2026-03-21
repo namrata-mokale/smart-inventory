@@ -34,11 +34,12 @@ def create_app():
             response.headers['Access-Control-Allow-Origin'] = '*'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
             response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS'
+            response.status_code = 204
             return response
 
     @app.after_request
     def add_cors_headers(response):
-        # Guarantee headers are set on every outgoing response to avoid CORS blocks on errors
+        # Ensure all outgoing responses have CORS headers, regardless of middleware status
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
         response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS'
@@ -48,12 +49,24 @@ def create_app():
     @app.errorhandler(Exception)
     def handle_exception(e):
         import traceback
-        print(f"ERROR: Backend crash on {request.method} {request.url}")
+        print(f"ERROR: Backend crash on {request.method if request else 'unknown'} {request.url if request else 'unknown'}")
         traceback.print_exc()
         
-        response = jsonify({"message": f"Backend Error: {str(e)}"})
-        response.status_code = 500
+        # Determine error message
+        msg = str(e)
+        status_code = 500
+        
+        # Check if it's a standard HTTP exception from Flask/Werkzeug
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            msg = e.description
+            status_code = e.code
+
+        response = jsonify({"message": f"Backend Error: {msg}"})
+        response.status_code = status_code
         response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS'
         return response
 
     JWTManager(app)
