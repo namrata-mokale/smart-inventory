@@ -418,20 +418,26 @@ const ShopDashboard = () => {
       } catch (e) {}
   };
   const acceptQuote = async (quoteId) => {
+      if (!quoteId) {
+          alert("Invalid Quote ID");
+          return;
+      }
       try {
           const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/inventory/quotes/${quoteId}/accept`, { 
               method: 'POST', 
               headers: { 
                   'Authorization': `Bearer ${token}`,
                   'Content-Type': 'application/json'
-              } 
+              },
+              body: JSON.stringify({}) // Send empty body to ensure preflight and server handling
           });
           
           let data;
           try {
               data = await res.json();
           } catch (e) {
-              data = { message: 'Server returned an invalid response' };
+              console.error("JSON Parse Error:", e);
+              data = { message: `Server returned an invalid response (${res.status} ${res.statusText})` };
           }
 
           if (res.ok) {
@@ -444,7 +450,7 @@ const ShopDashboard = () => {
           }
       } catch (e) { 
           console.error('Accept quote error:', e);
-          alert(`Network error: ${e.message}`); 
+          alert(`Network error: ${e.message}. Please check if the backend is reachable.`); 
       }
   };
 
