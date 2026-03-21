@@ -40,8 +40,8 @@ const Login = () => {
         setError(`Server error (non-JSON). Check if backend is running on port 5001.`);
       }
     } catch (err) {
-      console.error("LOGIN_ERROR:", err);
-      setError(`Network error: ${err.message}. Ensure backend is running on port 5001.`);
+      console.error('LOGIN_ERROR:', err);
+      setError(`Network error: ${err.message}. Backend might be waking up.`);
     }
   };
 

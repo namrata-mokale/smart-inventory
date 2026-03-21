@@ -37,8 +37,8 @@ def register():
         )
         
         db.session.add(new_user)
-        db.session.commit()
-        print(f"DEBUG: User {new_user.id} created successfully")
+        db.session.flush() # Flush to get new_user.id without committing
+        print(f"DEBUG: User object created with ID {new_user.id}")
         
         # If Shop Owner, create Shop
         if data['role'] == 'shop_owner':
@@ -48,6 +48,7 @@ def register():
                 location=data.get('address') # Use address as location fallback
             )
             db.session.add(new_shop)
+            print(f"DEBUG: Shop created for owner {new_user.id}")
         
         # If Supplier, create Supplier Profile
         elif data['role'] == 'supplier':

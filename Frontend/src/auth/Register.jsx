@@ -113,8 +113,8 @@ const Register = () => {
         setError(`Server error (non-JSON). Check if backend is running on port 5001.`);
       }
     } catch (err) {
-      console.error("REGISTER_ERROR:", err);
-      setError(`Network error: ${err.message}. Check if server is running on 5001.`);
+      console.error("REGISTRATION_ERROR:", err);
+      setError(`Network error: ${err.message}. This usually happens if the backend is waking up or blocked by CORS.`);
     }
   };
 

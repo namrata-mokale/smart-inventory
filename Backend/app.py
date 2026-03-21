@@ -29,9 +29,10 @@ def create_app():
     
     @app.after_request
     def add_cors_headers(response):
-        # Only add headers if they aren't already there to avoid duplicates
-        if 'Access-Control-Allow-Origin' not in response.headers:
-            response.headers['Access-Control-Allow-Origin'] = '*'
+        # Guarantee headers are set on every outgoing response to avoid CORS blocks on errors
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS'
         return response
 
     # Global error handler to ensure CORS headers are sent even on 500 errors
@@ -42,16 +43,10 @@ def create_app():
         print(f"ERROR: Backend crash on {request.method} {request.url}")
         traceback.print_exc()
         
-        response = jsonify({
-            "message": f"Backend Error: {str(e)}",
-            "type": e.__class__.__name__
-        })
+        response = jsonify({"message": f"Backend Error: {str(e)}"})
         response.status_code = 500
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response
-
-    # Remove flask-cors middleware and rely on manual handlers above
-    # CORS(app, resources={r"/*": {"origins": "*"}})
 
     JWTManager(app)
     
