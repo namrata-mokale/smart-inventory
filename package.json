@@ -1,0 +1,10 @@
+{
+  "name": "smart-inventory-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install-frontend": "cd Frontend && npm install",
+    "build-frontend": "cd Frontend && npm run build",
+    "build": "npm run install-frontend && npm run build-frontend"
+  }
+}
