@@ -63,8 +63,16 @@ def record_transaction():
         
         product = Product.query.get(product_id)
         if not product:
+            # Fallback: check if product_id is actually an integer
+            try:
+                pid = int(product_id)
+                product = Product.query.get(pid)
+            except:
+                product = None
+                
+        if not product:
             print(f"DEBUG: Product {product_id} not found!")
-            return jsonify({"message": "Product not found"}), 404
+            return jsonify({"message": f"Product with ID {product_id} not found"}), 404
 
         print(f"DEBUG: Product Found: {product.name}, Current Product Stock: {product.stock_quantity}")
         
@@ -461,23 +469,16 @@ def get_products():
         status = "In Stock"
         discounted_price = None
         
-        # Status Logic: Check Variations first, then fallback to main product
-        if p.unit_options:
-            status = "In Stock"
-            for opt in p.unit_options:
-                if opt.stock_quantity <= opt.reorder_level:
-                    status = "Low Stock"
-                    break
-        else:
-            if p.stock_quantity <= p.reorder_level:
-                status = "Low Stock"
-
-        # Check Expiry (Higher priority status)
+        # Check Expiry
         if p.expiry_date:
             days_to_expiry = (p.expiry_date - datetime.now().date()).days
             if 0 <= days_to_expiry <= 7:
                 status = "Expiring Soon"
                 discounted_price = p.selling_price * 0.8
+            # Fully expired items are auto-archived and removed earlier
+
+        if p.stock_quantity <= p.reorder_level:
+            status = "Low Stock"
 
         result.append({
             "id": p.id,
