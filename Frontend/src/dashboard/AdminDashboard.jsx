@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaUserShield, FaStore, FaTruck, FaUsers, FaExclamationCircle, FaSignOutAlt, FaChartPie, FaTrash, FaCheckCircle } from 'react-icons/fa';
+import { API_BASE_URL } from '../config';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ const AdminDashboard = () => {
     const token = getToken();
     if (!token) return navigate('/login');
     try {
-      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/admin/dashboard', {
+      const res = await fetch(`${API_BASE_URL}/admin/dashboard`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setStats(await res.json());
@@ -38,7 +39,7 @@ const AdminDashboard = () => {
   const fetchShops = async () => {
     const token = getToken();
     try {
-      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/admin/shops', {
+      const res = await fetch(`${API_BASE_URL}/admin/shops`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setShops(await res.json());
@@ -48,7 +49,7 @@ const AdminDashboard = () => {
   const fetchSuppliers = async () => {
     const token = getToken();
     try {
-      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/admin/suppliers', {
+      const res = await fetch(`${API_BASE_URL}/admin/suppliers`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setSuppliers(await res.json());
@@ -60,7 +61,7 @@ const AdminDashboard = () => {
     const token = getToken();
     try {
       // Using POST for delete to avoid CORS issues
-      const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/admin/shops/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/admin/shops/${id}`, {
         method: 'POST', 
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -79,7 +80,7 @@ const AdminDashboard = () => {
     const token = getToken();
     try {
       // Using POST for delete
-      const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/admin/suppliers/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/admin/suppliers/${id}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });

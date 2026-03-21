@@ -40,7 +40,10 @@ def create_app():
         from flask import jsonify
         response = jsonify({"message": f"Backend Error: {str(e)}"})
         response.status_code = 500
+        # Direct assignment to guarantee headers on error
         response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS'
         return response
 
     JWTManager(app)

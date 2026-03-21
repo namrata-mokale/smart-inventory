@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { FaUser, FaEnvelope, FaLock, FaPhone, FaBuilding, FaStore, FaUserTag, FaMapMarkerAlt, FaMapPin, FaUniversity, FaSearch, FaCalendarAlt, FaTimes } from 'react-icons/fa';
+import { API_BASE_URL } from '../config';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -33,7 +34,7 @@ const Register = () => {
 
   const fetchShops = async () => {
     try {
-      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/auth/shops');
+      const res = await fetch(`${API_BASE_URL}/auth/shops`);
       if (res.ok) {
         setShops(await res.json());
       } else {
@@ -91,7 +92,7 @@ const Register = () => {
         shop_ids: formData.role === 'customer' ? [] : [formData.shop_id]
       };
 
-      const response = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

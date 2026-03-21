@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaTruck, FaBoxOpen, FaClipboardList, FaSignOutAlt, FaCheckCircle, FaShippingFast, FaClock, FaExclamationTriangle, FaBell, FaPlusCircle } from 'react-icons/fa';
+import { API_BASE_URL } from '../config';
 
 const SupplierDashboard = () => {
   const [requests, setRequests] = useState([]);
@@ -35,7 +36,7 @@ const SupplierDashboard = () => {
   const fetchRequests = async () => {
     try {
       console.log("DEBUG: Fetching supplier requests...");
-      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/requests', {
+      const res = await fetch(`${API_BASE_URL}/supplier/requests`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -50,7 +51,7 @@ const SupplierDashboard = () => {
 
   const fetchCatalog = async () => {
     try {
-      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/catalog', { 
+      const res = await fetch(`${API_BASE_URL}/supplier/catalog`, { 
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setCatalog(await res.json());
@@ -59,7 +60,7 @@ const SupplierDashboard = () => {
 
   const fetchLinkedShops = async () => {
     try {
-      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/linked-shops', { 
+      const res = await fetch(`${API_BASE_URL}/supplier/linked-shops`, { 
         headers: { 'Authorization': `Bearer ${token}` } 
       });
       if (res.ok) setLinkedShops(await res.json());
@@ -68,7 +69,7 @@ const SupplierDashboard = () => {
 
   const fetchBills = async () => {
     try {
-      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/billing/supplier', { 
+      const res = await fetch(`${API_BASE_URL}/billing/supplier`, { 
         headers: { 'Authorization': `Bearer ${token}` } 
       });
       if (res.ok) setBills(await res.json());
@@ -96,7 +97,7 @@ const SupplierDashboard = () => {
         discount_percent: parseFloat(newItem.discount_percent || '0'),
         variations: newItem.variations
       };
-      const res = await fetch('https://smart-inventory-backend-pa1g.onrender.com/api/supplier/catalog', {
+      const res = await fetch(`${API_BASE_URL}/supplier/catalog`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(body)
@@ -135,7 +136,7 @@ const SupplierDashboard = () => {
       const qi = quoteInputs[reqId] || {};
       const discount_percent = parseFloat(qi.discount_percent || '0');
       try {
-          const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/supplier/requests/${reqId}/quote`, {
+          const res = await fetch(`${API_BASE_URL}/supplier/requests/${reqId}/quote`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ discount_percent })
@@ -159,7 +160,7 @@ const SupplierDashboard = () => {
       }
 
       try {
-          const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/supplier/requests/${selectedRequestId}/update`, {
+          const res = await fetch(`${API_BASE_URL}/supplier/requests/${selectedRequestId}/update`, {
               method: 'POST',
               headers: { 
                   'Content-Type': 'application/json',
@@ -186,7 +187,7 @@ const SupplierDashboard = () => {
       }
 
       try {
-          const res = await fetch(`https://smart-inventory-backend-pa1g.onrender.com/api/supplier/requests/${id}/update`, {
+          const res = await fetch(`${API_BASE_URL}/supplier/requests/${id}/update`, {
               method: 'POST',
               headers: { 
                   'Content-Type': 'application/json',
