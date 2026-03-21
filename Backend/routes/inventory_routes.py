@@ -1115,13 +1115,13 @@ def accept_quote(quote_id):
         )
         db.session.add(bill)
         
-        # 4. Notifications
+        # 4. Notifications (Wrapped in try/except to prevent total failure)
         owner = User.query.get(shop.owner_id)
         supplier_obj = Supplier.query.get(q.supplier_id)
         supplier_name = supplier_obj.company_name if supplier_obj else "Supplier"
         
-        if owner and owner.email:
-            try:
+        try:
+            if owner and owner.email:
                 subject = f"Restock Quote Accepted - Payment Required for {req.product.name}"
                 content = f"You have accepted a quote from {supplier_name}.\n\n" \
                           f"Order Details:\n" \
@@ -1132,11 +1132,8 @@ def accept_quote(quote_id):
                           f"Grand Total: ₹{q.grand_total:.2f}\n\n" \
                           f"Please login and complete the payment to proceed with the restock."
                 send_email(owner.email, subject, content)
-            except Exception as e:
-                print(f"DEBUG: Failed to send owner email: {e}")
 
-        if supplier_obj and supplier_obj.user and supplier_obj.user.email:
-            try:
+            if supplier_obj and supplier_obj.user and supplier_obj.user.email:
                 subject = f"Your Quote for {req.product.name} was Accepted!"
                 content = f"Congratulations! Your quote for {req.product.name} has been accepted by {shop.name}.\n\n" \
                            f"Order Details:\n" \
@@ -1148,8 +1145,8 @@ def accept_quote(quote_id):
                            f"Grand Total: ₹{q.grand_total:.2f}\n\n" \
                            f"You will be notified once the payment is completed so you can ship the order."
                 send_email(supplier_obj.user.email, subject, content)
-            except Exception as e:
-                print(f"DEBUG: Failed to send supplier email: {e}")
+        except Exception as notify_err:
+            print(f"DEBUG: Non-critical notification failure: {notify_err}")
 
         db.session.commit()
         print(f"DEBUG: Quote {q.id} accepted. Bill {bill.id} generated.")
