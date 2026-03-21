@@ -447,7 +447,9 @@ const ShopDashboard = () => {
       if (!confirmAccept) return;
 
       try {
-          const res = await fetch(`${API_BASE_URL}/inventory/quotes/${quoteId}/accept`, { 
+          const url = `${API_BASE_URL}/inventory/quotes/${quoteId}/accept`;
+          console.log("DEBUG: Fetching URL:", url);
+          const res = await fetch(url, { 
               method: 'POST', 
               headers: { 
                   'Authorization': `Bearer ${token}`,
@@ -465,9 +467,13 @@ const ShopDashboard = () => {
           }
 
           if (res.ok) {
+              console.log("DEBUG: Quote accepted successfully");
               alert('Quote accepted and bill generated. Redirecting to Bills...');
-              fetchBills();
-              fetchRequests();
+              
+              // Non-blocking fetches to ensure UI updates immediately
+              fetchBills().catch(e => console.error("fetchBills error", e));
+              fetchRequests().catch(e => console.error("fetchRequests error", e));
+              
               setActiveTab('bills');
           } else {
               // If we see a "relation does not exist" error, it's a database schema issue

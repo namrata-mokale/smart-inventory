@@ -23,11 +23,12 @@ def create_app():
     db.init_app(app)
     Migrate(app, db)
     
-    # EXTREMELY PERMISSIVE CORS FOR PRODUCTION STABILITY
+    # MOST RELIABLE CORS FOR RENDER/VERCEL
     CORS(app, resources={r"/*": {"origins": "*"}})
     
     @app.after_request
     def add_cors_headers(response):
+        # Ensure these are always set even if flask-cors misses them
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
         response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS'
@@ -41,9 +42,9 @@ def create_app():
         response = jsonify({"message": f"Backend Error: {str(e)}"})
         response.status_code = 500
         response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With,Accept'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,PATCH,OPTIONS'
         return response
-
-    JWTManager(app)
 
     JWTManager(app)
     
