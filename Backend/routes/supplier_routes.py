@@ -8,19 +8,57 @@ from datetime import datetime
 supplier_bp = Blueprint('supplier', __name__)
 
 def get_supplier_for_user(user_id):
-    """Helper to find a supplier record linked to a user_id, with fallback to email/phone matching."""
+    """Helper to find a supplier record linked to a user_id, with fallback and recovery logic."""
     from models import User as UserTable
+    user = UserTable.query.get(user_id)
+    if not user:
+        return None
+
+    # 1. Direct link
     supplier = Supplier.query.filter_by(user_id=user_id).first()
-    if not supplier:
-        user = UserTable.query.get(user_id)
-        if user:
-            # Find a supplier profile that matches this user's email or phone by joining with UserTable
-            supplier = Supplier.query.join(UserTable).filter((UserTable.email == user.email) | (UserTable.phone == user.phone)).first()
+    
+    # 2. Recovery Logic: If no supplier found OR if the found supplier is "empty"
+    # (Empty = no catalog, no linked shops, no bills)
+    is_empty = False
+    if supplier:
+        has_catalog = SupplierCatalog.query.filter_by(supplier_id=supplier.id).first() is not None
+        has_shops = len(supplier.shops) > 0
+        has_bills = SupplierBill.query.filter_by(supplier_id=supplier.id).first() is not None
+        if not (has_catalog or has_shops or has_bills):
+            is_empty = True
+            print(f"DEBUG: Found supplier {supplier.id} for user {user_id} but it appears to be empty/new.")
+
+    if not supplier or is_empty:
+        # Try to find an "orphaned" or "old" supplier record by email/phone or company name
+        # We search for any supplier whose company name matches the user's name or provided company name
+        potential_recovery = Supplier.query.filter(
+            (Supplier.company_name == user.name) | 
+            (Supplier.company_name == getattr(user, 'company_name', None))
+        ).filter(Supplier.id != (supplier.id if supplier else -1)).first()
+
+        if potential_recovery:
+            print(f"DEBUG: Recovering old supplier record {potential_recovery.id} for user {user_id}")
+            # If we have an empty new supplier, delete it first to avoid unique constraint issues
+            if supplier and is_empty:
+                db.session.delete(supplier)
+                db.session.flush()
+            
+            potential_recovery.user_id = user.id
+            db.session.commit()
+            return potential_recovery
+
+        # If no recovery by name, try finding by email/phone via User join (even if dangling)
+        # This is a bit more complex, let's just stick to the current user's email
+        if not supplier:
+            # Last resort fallback from previous fix
+            supplier = Supplier.query.join(UserTable).filter(
+                (UserTable.email == user.email) | (UserTable.phone == user.phone)
+            ).first()
             if supplier:
-                # Re-link the supplier to the current user_id for future requests
                 supplier.user_id = user.id
                 db.session.commit()
                 print(f"DEBUG: Found supplier by email/phone and linked to user_id: {user_id}")
+
     return supplier
 
 @supplier_bp.route('/requests', methods=['GET'])
@@ -55,10 +93,13 @@ def get_supply_requests():
         print(f"DEBUG: Supplier {supplier.id} linked to shop IDs: {linked_shop_ids}")
             
         # 2. FETCH REQUESTS
-        # PERMISSIVE: Show if shop is linked OR if request is specifically assigned to this supplier
+        # PERMISSIVE: Show if:
+        # a) Request is specifically assigned to this supplier
+        # b) Shop is linked to this supplier
+        # c) Request is "Public" (no supplier assigned) AND supplier has matching item in catalog
         from sqlalchemy import or_
-        print(f"DEBUG: Searching for requests with shop_id in {linked_shop_ids} OR supplier_id == {supplier.id}")
         
+        # Initial filter for assigned or linked requests
         requests = SupplyRequest.query.filter(
             or_(
                 SupplyRequest.shop_id.in_(linked_shop_ids) if linked_shop_ids else False,
@@ -66,8 +107,25 @@ def get_supply_requests():
             )
         ).all()
         
+        # Add "Public" requests (Pending and no supplier_id) that match the supplier's catalog
+        public_requests = SupplyRequest.query.filter(
+            SupplyRequest.supplier_id == None,
+            SupplyRequest.status.in_(['Pending', 'Quotes Received', 'Awaiting Approval', 'Awaiting Selection'])
+        ).all()
+        
+        for pr in public_requests:
+            # Check if this request is already in the list (could be if shop is linked)
+            if any(r.id == pr.id for r in requests):
+                continue
+                
+            # Check if supplier sells this product
+            p_name = pr.product.name if pr.product else ""
+            p_sku = pr.product.sku if pr.product else ""
+            if find_catalog_match(supplier.id, p_sku, p_name):
+                requests.append(pr)
+        
         # LOGGING: Verify requests filtered
-        print(f"DEBUG: Found {len(requests)} total requests after filtering")
+        print(f"DEBUG: Found {len(requests)} total requests after filtering (including catalog matches)")
         for r in requests:
             print(f"  - Request ID: {r.id}, Shop ID: {r.shop_id}, Status: {r.status}, Supplier ID: {r.supplier_id}")
         

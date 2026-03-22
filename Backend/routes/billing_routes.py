@@ -120,6 +120,49 @@ def pay_bill(bill_id):
         traceback.print_exc()
         return jsonify({"message": f"Server Error during payment: {str(e)}"}), 500
 
+def get_supplier_for_user(user_id):
+    """Helper to find a supplier record linked to a user_id, with fallback and recovery logic."""
+    from models import Supplier, User as UserTable, SupplierCatalog, SupplierBill
+    user = UserTable.query.get(user_id)
+    if not user:
+        return None
+
+    # 1. Direct link
+    supplier = Supplier.query.filter_by(user_id=user_id).first()
+    
+    # 2. Recovery Logic: If no supplier found OR if the found supplier is "empty"
+    is_empty = False
+    if supplier:
+        has_catalog = SupplierCatalog.query.filter_by(supplier_id=supplier.id).first() is not None
+        has_shops = len(supplier.shops) > 0
+        has_bills = SupplierBill.query.filter_by(supplier_id=supplier.id).first() is not None
+        if not (has_catalog or has_shops or has_bills):
+            is_empty = True
+
+    if not supplier or is_empty:
+        potential_recovery = Supplier.query.filter(
+            (Supplier.company_name == user.name) | 
+            (Supplier.company_name == getattr(user, 'company_name', None))
+        ).filter(Supplier.id != (supplier.id if supplier else -1)).first()
+
+        if potential_recovery:
+            if supplier and is_empty:
+                db.session.delete(supplier)
+                db.session.flush()
+            potential_recovery.user_id = user.id
+            db.session.commit()
+            return potential_recovery
+
+        if not supplier:
+            supplier = Supplier.query.join(UserTable).filter(
+                (UserTable.email == user.email) | (UserTable.phone == user.phone)
+            ).first()
+            if supplier:
+                supplier.user_id = user.id
+                db.session.commit()
+
+    return supplier
+
 @billing_bp.route('/supplier', methods=['GET'])
 @jwt_required()
 def list_supplier_bills():
@@ -127,15 +170,7 @@ def list_supplier_bills():
     user_id = current_user['id']
     
     # Robust supplier lookup with fallback
-    from models import Supplier, User as UserTable
-    supplier = Supplier.query.filter_by(user_id=user_id).first()
-    if not supplier:
-        user = UserTable.query.get(user_id)
-        if user:
-            supplier = Supplier.query.join(UserTable).filter((UserTable.email == user.email) | (UserTable.phone == user.phone)).first()
-            if supplier:
-                supplier.user_id = user.id
-                db.session.commit()
+    supplier = get_supplier_for_user(user_id)
 
     if not supplier:
         return jsonify([]), 200
