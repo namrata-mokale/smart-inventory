@@ -124,7 +124,19 @@ def pay_bill(bill_id):
 @jwt_required()
 def list_supplier_bills():
     current_user = get_jwt_identity()
-    supplier = Supplier.query.filter_by(user_id=current_user['id']).first()
+    user_id = current_user['id']
+    
+    # Robust supplier lookup with fallback
+    from models import Supplier, User as UserTable
+    supplier = Supplier.query.filter_by(user_id=user_id).first()
+    if not supplier:
+        user = UserTable.query.get(user_id)
+        if user:
+            supplier = Supplier.query.join(UserTable).filter((UserTable.email == user.email) | (UserTable.phone == user.phone)).first()
+            if supplier:
+                supplier.user_id = user.id
+                db.session.commit()
+
     if not supplier:
         return jsonify([]), 200
     bills = SupplierBill.query.filter_by(supplier_id=supplier.id).order_by(SupplierBill.date_created.desc()).all()

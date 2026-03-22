@@ -7,6 +7,22 @@ from datetime import datetime
 
 supplier_bp = Blueprint('supplier', __name__)
 
+def get_supplier_for_user(user_id):
+    """Helper to find a supplier record linked to a user_id, with fallback to email/phone matching."""
+    from models import User as UserTable
+    supplier = Supplier.query.filter_by(user_id=user_id).first()
+    if not supplier:
+        user = UserTable.query.get(user_id)
+        if user:
+            # Find a supplier profile that matches this user's email or phone by joining with UserTable
+            supplier = Supplier.query.join(UserTable).filter((UserTable.email == user.email) | (UserTable.phone == user.phone)).first()
+            if supplier:
+                # Re-link the supplier to the current user_id for future requests
+                supplier.user_id = user.id
+                db.session.commit()
+                print(f"DEBUG: Found supplier by email/phone and linked to user_id: {user_id}")
+    return supplier
+
 @supplier_bp.route('/requests', methods=['GET'])
 @jwt_required()
 def get_supply_requests():
@@ -17,21 +33,10 @@ def get_supply_requests():
         
         print(f"DEBUG: get_supply_requests called for user_id: {user_id}, role: {role}")
         
-        supplier = Supplier.query.filter_by(user_id=user_id).first()
+        supplier = get_supplier_for_user(user_id)
         if not supplier:
             print(f"DEBUG: No supplier record found for user_id: {user_id}")
-            # Try to find by email/phone as fallback if user_id link is broken
-            from models import User
-            user = User.query.get(user_id)
-            if user:
-                supplier = Supplier.query.filter((Supplier.email == user.email) | (Supplier.phone == user.phone)).first()
-                if supplier:
-                    supplier.user_id = user.id
-                    db.session.commit()
-                    print(f"DEBUG: Found supplier by email/phone and linked to user_id: {user_id}")
-            
-            if not supplier:
-                return jsonify([]), 200
+            return jsonify([]), 200
             
         print(f"DEBUG: Found supplier: {supplier.company_name} (ID: {supplier.id})")
             
@@ -152,7 +157,7 @@ def get_supply_requests():
 @jwt_required()
 def update_request_status(req_id):
     current_user = get_jwt_identity()
-    supplier = Supplier.query.filter_by(user_id=current_user['id']).first()
+    supplier = get_supplier_for_user(current_user['id'])
     if not supplier:
         return jsonify({"message": "Supplier not found"}), 404
         
@@ -231,7 +236,7 @@ def update_request_status(req_id):
 @jwt_required()
 def submit_quote(req_id):
     current_user = get_jwt_identity()
-    supplier = Supplier.query.filter_by(user_id=current_user['id']).first()
+    supplier = get_supplier_for_user(current_user['id'])
     if not supplier:
         return jsonify({"message": "Supplier not found"}), 404
     req = SupplyRequest.query.get(req_id)
@@ -338,7 +343,7 @@ def list_suppliers():
 @jwt_required()
 def linked_shops():
     current_user = get_jwt_identity()
-    supplier = Supplier.query.filter_by(user_id=current_user['id']).first()
+    supplier = get_supplier_for_user(current_user['id'])
     if not supplier:
         return jsonify([]), 200
     result = []
@@ -415,7 +420,7 @@ def get_catalog():
     current_user = get_jwt_identity()
     if current_user['role'] != 'supplier':
         return jsonify([]), 200
-    supplier = Supplier.query.filter_by(user_id=current_user['id']).first()
+    supplier = get_supplier_for_user(current_user['id'])
     if not supplier:
         return jsonify([]), 200
     items = SupplierCatalog.query.filter_by(supplier_id=supplier.id).all()
@@ -452,7 +457,7 @@ def add_catalog_item():
         current_user = get_jwt_identity()
         if current_user['role'] != 'supplier':
             return jsonify({"message": "Unauthorized"}), 403
-        supplier = Supplier.query.filter_by(user_id=current_user['id']).first()
+        supplier = get_supplier_for_user(current_user['id'])
         if not supplier:
             return jsonify({"message": "Supplier not found"}), 404
         data = request.get_json() or {}
