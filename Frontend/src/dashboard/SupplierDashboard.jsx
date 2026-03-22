@@ -157,8 +157,9 @@ const SupplierDashboard = () => {
   const confirmDelivery = async () => {
       let body = { status: 'Delivered' };
       
+      // If a new expiry date was manually entered in the modal, use it
       if (expiryDate) {
-          body.new_expiry_date = expiryDate;
+          body.expiry_date = expiryDate;
       }
 
       try {
@@ -175,7 +176,8 @@ const SupplierDashboard = () => {
               setShowDeliveryModal(false);
               fetchRequests();
           } else {
-              alert('Failed to update status');
+              const errorData = await res.json();
+              alert(errorData.message || 'Failed to update status');
           }
       } catch (e) {
           alert('Error updating status');
@@ -184,6 +186,30 @@ const SupplierDashboard = () => {
 
   const handleUpdateStatus = async (id, status) => {
       if (status === 'Delivered') {
+          // If we already have an expiry date from the quote, just deliver immediately
+          const req = requests.find(r => r.id === id);
+          if (req && req.expiry_date && req.expiry_date !== 'Not Specified') {
+              // Direct delivery using existing expiry date
+              try {
+                  const res = await fetch(`${API_BASE_URL}/supplier/requests/${id}/update`, {
+                      method: 'POST',
+                      headers: { 
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}` 
+                      },
+                      body: JSON.stringify({ status: 'Delivered' })
+                  });
+                  if (res.ok) {
+                      alert(`Request marked as Delivered`);
+                      fetchRequests(); 
+                      return;
+                  }
+              } catch (e) {
+                  console.error("Direct delivery failed, falling back to modal", e);
+              }
+          }
+          
+          // Fallback to modal if no expiry date exists or direct delivery failed
           openDeliveryModal(id);
           return;
       }
