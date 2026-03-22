@@ -12,7 +12,13 @@ def migrate():
     if db_url and db_url.startswith('postgres'):
         print("Detected PostgreSQL database. Attempting migration via psycopg2...")
         try:
-            import psycopg2
+            # Prefer psycopg2-binary if available
+            try:
+                import psycopg2
+            except ImportError:
+                print("psycopg2 not found, trying psycopg2-binary...")
+                import psycopg2
+            
             # Handle potential 'postgres://' vs 'postgresql://' issue
             if db_url.startswith('postgres://'):
                 db_url = db_url.replace('postgres://', 'postgresql://', 1)
@@ -23,26 +29,27 @@ def migrate():
             tables_to_fix = ['supply_requests', 'supplier_bills', 'supplier_quotes']
             for table in tables_to_fix:
                 try:
+                    # Check if column already exists in PostgreSQL
+                    cursor.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name='{table}' AND column_name='expiry_date'")
+                    if cursor.fetchone():
+                        print(f"Column 'expiry_date' already exists in '{table}'.")
+                        continue
+                        
                     cursor.execute(f"ALTER TABLE {table} ADD COLUMN expiry_date DATE")
+                    conn.commit()
                     print(f"Added 'expiry_date' column to '{table}' (PostgreSQL).")
                 except Exception as e:
                     conn.rollback()
-                    if 'already exists' in str(e):
-                        print(f"Column 'expiry_date' already exists in '{table}'.")
-                    else:
-                        print(f"Error migrating {table}: {e}")
-                else:
-                    conn.commit()
+                    print(f"Error migrating {table}: {e}")
+            
             conn.close()
             print("PostgreSQL migration completed.")
-        except ImportError:
-            print("psycopg2 not installed. Cannot migrate PostgreSQL automatically.")
-            print("Please run these SQL commands manually on your Neon console:")
+        except Exception as e:
+            print(f"PostgreSQL connection/migration error: {e}")
+            print("Please run these SQL commands manually on your Neon console if errors persist:")
             print("ALTER TABLE supply_requests ADD COLUMN expiry_date DATE;")
             print("ALTER TABLE supplier_bills ADD COLUMN expiry_date DATE;")
             print("ALTER TABLE supplier_quotes ADD COLUMN expiry_date DATE;")
-        except Exception as e:
-            print(f"PostgreSQL connection error: {e}")
     
     # 2. Always try SQLite migration for local environment
     db_paths = [
