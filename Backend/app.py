@@ -30,14 +30,81 @@ def create_app():
     # RUN MIGRATIONS ON STARTUP (Autonomously handle Neon/SQLite column updates)
     with app.app_context():
         try:
-            print("INFO: Running database migrations (expiry_date and batches)...")
-            from migrate_expiry_date import migrate as migrate_expiry
-            from migrate_batches import migrate_batches
-            migrate_expiry()
-            migrate_batches()
-            print("INFO: Database migrations completed successfully.")
+            from sqlalchemy import text
+            print("INFO: Checking for missing columns and tables...")
+            
+            # 1. Ensure expiry_date column exists in all relevant tables
+            tables_to_check = ['supply_requests', 'supplier_bills', 'supplier_quotes']
+            for table in tables_to_check:
+                try:
+                    # Try to select the column to see if it exists
+                    db.session.execute(text(f"SELECT expiry_date FROM {table} LIMIT 1"))
+                except Exception:
+                    db.session.rollback()
+                    print(f"INFO: Adding 'expiry_date' column to '{table}'...")
+                    # Add based on database type
+                    is_postgres = 'postgresql' in str(db.engine.url)
+                    if is_postgres:
+                        db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN expiry_date DATE"))
+                    else:
+                        db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN expiry_date DATE"))
+                    db.session.commit()
+                    print(f"SUCCESS: Added 'expiry_date' to '{table}'")
+
+            # 2. Ensure product_batches table exists
+            try:
+                db.session.execute(text("SELECT id FROM product_batches LIMIT 1"))
+            except Exception:
+                db.session.rollback()
+                print("INFO: Creating 'product_batches' table...")
+                is_postgres = 'postgresql' in str(db.engine.url)
+                if is_postgres:
+                    db.session.execute(text("""
+                        CREATE TABLE product_batches (
+                            id SERIAL PRIMARY KEY,
+                            product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                            unit_option_id INTEGER REFERENCES product_unit_options(id) ON DELETE CASCADE,
+                            quantity INTEGER DEFAULT 0,
+                            expiry_date DATE,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                else:
+                    db.session.execute(text("""
+                        CREATE TABLE product_batches (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            product_id INTEGER NOT NULL,
+                            unit_option_id INTEGER,
+                            quantity INTEGER DEFAULT 0,
+                            expiry_date DATE,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                            FOREIGN KEY (unit_option_id) REFERENCES product_unit_options(id) ON DELETE CASCADE
+                        )
+                    """))
+                db.session.commit()
+                print("SUCCESS: Created 'product_batches' table")
+                
+                # Migrate existing stock to batches
+                print("INFO: Migrating existing stock to batches...")
+                # From unit options
+                db.session.execute(text("""
+                    INSERT INTO product_batches (product_id, unit_option_id, quantity)
+                    SELECT product_id, id, stock_quantity FROM product_unit_options WHERE stock_quantity > 0
+                """))
+                # From products (no variations)
+                db.session.execute(text("""
+                    INSERT INTO product_batches (product_id, quantity, expiry_date)
+                    SELECT id, stock_quantity, expiry_date FROM products 
+                    WHERE stock_quantity > 0 AND id NOT IN (SELECT product_id FROM product_unit_options)
+                """))
+                db.session.commit()
+                print("SUCCESS: Stock migration to batches completed.")
+
+            print("INFO: All database migrations verified.")
         except Exception as me:
-            print(f"WARNING: Database migration error during startup: {me}")
+            db.session.rollback()
+            print(f"CRITICAL: Database migration failed: {me}")
             import traceback
             traceback.print_exc()
     
