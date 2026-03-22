@@ -86,6 +86,7 @@ def pay_bill(bill_id):
         
         if req:
             req.status = 'Paid'
+            req.expiry_date = bill.expiry_date # Set the request's final expiry date to match the bill
             supplier = Supplier.query.get(bill.supplier_id)
             
             # Notify supplier of payment

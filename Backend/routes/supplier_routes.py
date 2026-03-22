@@ -203,16 +203,14 @@ def update_request_status(req_id):
                 if product.unit_options:
                     product.stock_quantity = sum(o.stock_quantity for o in product.unit_options)
                 
+                # 4. Update Expiry Date from the request (set during quote acceptance/payment)
+                if req.expiry_date:
+                    product.expiry_date = req.expiry_date
+                    print(f"DEBUG: Updated product {product.name} expiry date to {product.expiry_date}")
+                
                 db.session.add(product)
                 db.session.commit()
                 print(f"DEBUG: Final stock for {product.name} after delivery: {product.stock_quantity}")
-            
-            # Update Expiry Date if provided
-            new_expiry = data.get('new_expiry_date')
-            if new_expiry:
-                try:
-                    product.expiry_date = datetime.strptime(new_expiry, '%Y-%m-%d').date()
-                except ValueError: pass
             
             # Log Transaction
             trans = Transaction(
@@ -271,6 +269,14 @@ def submit_quote(req_id):
                 print(f"DEBUG: No exact variation match found for {req.unit_value} {req.unit_type}. Using base price: {unit_price}")
 
         discount_percent = float(body.get('discount_percent', 0))
+        expiry_date_str = body.get('expiry_date') # Expiry date for this batch
+        
+        expiry_date = None
+        if expiry_date_str:
+            try:
+                expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
         
         if unit_price <= 0:
             return jsonify({"message": "Invalid base price in catalog"}), 400
@@ -292,6 +298,7 @@ def submit_quote(req_id):
             total=total,
             gst_amount=gst_amount,
             grand_total=grand_total,
+            expiry_date=expiry_date,
             status='Offered'
         )
         db.session.add(q)

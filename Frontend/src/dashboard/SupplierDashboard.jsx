@@ -135,15 +135,17 @@ const SupplierDashboard = () => {
   const submitQuote = async (reqId) => {
       const qi = quoteInputs[reqId] || {};
       const discount_percent = parseFloat(qi.discount_percent || '0');
+      const expiry_date = qi.expiry_date || ''; // New field for batch expiry
+      
       try {
           const res = await fetch(`${API_BASE_URL}/supplier/requests/${reqId}/quote`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ discount_percent })
+              body: JSON.stringify({ discount_percent, expiry_date })
           });
           const data = await res.json();
           if (res.ok) {
-              alert('Quote submitted');
+              alert('Quote submitted with batch expiry date');
               setQuoteInputs({ ...quoteInputs, [reqId]: {} });
               fetchRequests();
           } else {
@@ -412,8 +414,15 @@ const SupplierDashboard = () => {
                                                   <span>Subtotal: <span className="font-bold text-gray-900">₹{(req.base_price * req.quantity).toFixed(2)}</span></span>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2 mb-2">
-                                                  <input className="border rounded px-2 py-1 text-sm" type="number" step="0.01" placeholder="Discount %" value={(quoteInputs[req.id]?.discount_percent)||''} onChange={e=>setQuoteInputs({...quoteInputs, [req.id]: {...(quoteInputs[req.id]||{}), discount_percent: e.target.value}})} />
-                                                  <button onClick={() => submitQuote(req.id)} className="bg-green-600 text-white rounded px-3 py-1 text-sm hover:bg-green-700">Submit Quote</button>
+                                                  <div className="flex flex-col">
+                                                    <label className="text-[10px] text-gray-400 font-bold uppercase mb-1">Discount %</label>
+                                                    <input className="border rounded px-2 py-1 text-sm" type="number" step="0.01" placeholder="0" value={(quoteInputs[req.id]?.discount_percent)||''} onChange={e=>setQuoteInputs({...quoteInputs, [req.id]: {...(quoteInputs[req.id]||{}), discount_percent: e.target.value}})} />
+                                                  </div>
+                                                  <div className="flex flex-col">
+                                                    <label className="text-[10px] text-gray-400 font-bold uppercase mb-1">Batch Expiry</label>
+                                                    <input className="border rounded px-2 py-1 text-sm" type="date" value={(quoteInputs[req.id]?.expiry_date)||''} onChange={e=>setQuoteInputs({...quoteInputs, [req.id]: {...(quoteInputs[req.id]||{}), expiry_date: e.target.value}})} />
+                                                  </div>
+                                                  <button onClick={() => submitQuote(req.id)} className="col-span-2 bg-green-600 text-white rounded px-3 py-2 text-sm font-bold hover:bg-green-700 mt-1 shadow-sm transition-all">Submit Quote with Batch Details</button>
                                                 </div>
                                                 {quoteInputs[req.id]?.discount_percent > 0 && (
                                                   <div className="space-y-1 mb-2">

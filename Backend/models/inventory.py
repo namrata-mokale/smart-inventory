@@ -85,6 +85,7 @@ class SupplyRequest(db.Model):
     
     request_date = db.Column(db.DateTime, default=datetime.utcnow)
     delivery_date = db.Column(db.DateTime, nullable=True)
+    expiry_date = db.Column(db.Date, nullable=True) # Expiry date provided by supplier for this restock batch
     
     # Relationships
     product = db.relationship('Product', backref='supply_requests')

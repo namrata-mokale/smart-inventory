@@ -17,6 +17,7 @@ class SupplierBill(db.Model):
     gst_amount = db.Column(db.Float, default=0.0)
     grand_total = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(20), default='Pending') # Pending, Awaiting Payment, Paid, Failed
+    expiry_date = db.Column(db.Date, nullable=True) # Expiry date for this specific batch
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
     date_delivered = db.Column(db.DateTime, nullable=True)
 
@@ -38,6 +39,7 @@ class SupplierQuote(db.Model):
     total = db.Column(db.Float, nullable=False) # Subtotal
     gst_amount = db.Column(db.Float, default=0.0)
     grand_total = db.Column(db.Float, nullable=False)
+    expiry_date = db.Column(db.Date, nullable=True) # Expiry date offered by supplier
     status = db.Column(db.String(20), default='Offered') # Offered, Accepted, Rejected
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

@@ -1100,6 +1100,7 @@ def accept_quote(quote_id):
             total=q.total,
             gst_amount=q.gst_amount,
             grand_total=q.grand_total,
+            expiry_date=q.expiry_date, # Carry over the supplier's provided expiry date
             status='Awaiting Payment'
         )
         db.session.add(bill)
