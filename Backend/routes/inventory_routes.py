@@ -1108,14 +1108,18 @@ def accept_quote(quote_id):
         db.session.commit()
         print(f"DEBUG: Bill created successfully for quote {quote_id}")
 
-        # 5. Async notifications (Simplified for speed)
+        # 5. Notify shop owner of quote acceptance
         try:
             from services.notification_service import send_email
             from models import Shop, User, Supplier
             shop = Shop.query.get(shop_id)
             owner = User.query.get(shop.owner_id)
             if owner and owner.email:
-                send_email(owner.email, "Quote Accepted", f"You accepted a quote for {req.product.name}")
+                subject = f"Quote Accepted - Order for {req.product.name}"
+                content = f"You have accepted the quote for {req.product.name}.\n\n" \
+                          f"A bill for ₹{bill.grand_total:.2f} has been generated.\n" \
+                          f"Please proceed to the 'Bills' tab in your dashboard to complete the payment."
+                send_email(owner.email, subject, content)
         except Exception as e:
             print(f"DEBUG: Notification skipped: {e}")
 
@@ -1125,20 +1129,6 @@ def accept_quote(quote_id):
         import traceback
         traceback.print_exc()
         return jsonify({"message": f"Server Error: {str(e)}"}), 500
-        print(f"DEBUG: Quote {q.id} accepted. Bill {bill.id} generated.")
-        return jsonify({"message": "Quote accepted and bill generated", "bill_id": bill.id}), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        import traceback
-        error_msg = str(e)
-        # Check for specific DB errors to provide better messages
-        if "relation" in error_msg and "does not exist" in error_msg:
-            error_msg = "Database schema issue: Some tables are missing. Please contact support or try again later."
-            
-        print(f"CRITICAL ERROR in accept_quote: {str(e)}")
-        traceback.print_exc()
-        return jsonify({"message": f"Server Error: {error_msg}"}), 500
 
 @inventory_bp.route('/bills/<int:bill_id>/retry-restock', methods=['POST'])
 @jwt_required()

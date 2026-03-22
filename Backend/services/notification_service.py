@@ -1,41 +1,45 @@
 import smtplib
+import threading
 from email.mime.text import MIMEText
 from flask import current_app
 # from twilio.rest import Client
 
-def send_email(to_email, subject, body):
-    msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = current_app.config['MAIL_USERNAME']
-    msg['To'] = to_email
+def send_email_async(app, to_email, subject, body):
+    with app.app_context():
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = app.config['MAIL_USERNAME']
+        msg['To'] = to_email
 
-    try:
-        if not current_app.config['MAIL_SERVER']:
-            print(f"Mock Email to {to_email}: {subject}")
-            return True
+        try:
+            if not app.config['MAIL_SERVER']:
+                print(f"Mock Email to {to_email}: {subject}")
+                return
+                
+            print(f"Attempting to send email to {to_email} via {app.config['MAIL_SERVER']}...")
             
-        print(f"Attempting to send email to {to_email} via {current_app.config['MAIL_SERVER']}...")
-        print(f"MAIL_USERNAME: {current_app.config['MAIL_USERNAME']}")
-        
-        # Ensure TLS is used if configured (usually True for Gmail)
-        server = smtplib.SMTP(current_app.config['MAIL_SERVER'], current_app.config['MAIL_PORT'])
-        server.set_debuglevel(1) 
-        
-        server.ehlo() # Identify ourselves to smtp client
-        if current_app.config['MAIL_USE_TLS']:
-            server.starttls() # Secure the connection
-            server.ehlo() # Re-identify as an encrypted connection
+            # Ensure TLS is used if configured (usually True for Gmail)
+            server = smtplib.SMTP(app.config['MAIL_SERVER'], app.config['MAIL_PORT'], timeout=10)
             
-        server.login(current_app.config['MAIL_USERNAME'], current_app.config['MAIL_PASSWORD'])
-        server.send_message(msg)
-        server.quit()
-        print(f"Email sent successfully to {to_email}")
-        return True
-    except Exception as e:
-        print(f"Failed to send email: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+            server.ehlo() # Identify ourselves to smtp client
+            if app.config.get('MAIL_USE_TLS'):
+                server.starttls() # Secure the connection
+                server.ehlo() # Re-identify as an encrypted connection
+                
+            server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
+            server.send_message(msg)
+            server.quit()
+            print(f"Email sent successfully to {to_email}")
+        except Exception as e:
+            print(f"Failed to send async email: {e}")
+
+def send_email(to_email, subject, body):
+    """Sends email in a background thread to prevent blocking the request."""
+    from flask import current_app
+    app = current_app._get_current_object()
+    thread = threading.Thread(target=send_email_async, args=(app, to_email, subject, body))
+    thread.start()
+    return True # Return immediately to caller
 
 def send_birthday_wish(customer):
     """Checks if today is customer's birthday and sends email + creates offers if so."""
