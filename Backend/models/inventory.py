@@ -64,6 +64,8 @@ class Transaction(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=True)
     is_birthday_sale = db.Column(db.Boolean, default=False) # Flag for birthday discount
     discount_amount = db.Column(db.Float, default=0.0) # Total discount applied
+    gst_amount = db.Column(db.Float, default=0.0) # Added for customer billing
+    total_amount = db.Column(db.Float, nullable=True) # Grand Total (including GST)
     unit_type = db.Column(db.String(20)) # kg, grams, etc.
     unit_value = db.Column(db.Float) # 0.5, 1, 3
 

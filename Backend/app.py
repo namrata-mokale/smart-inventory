@@ -33,23 +33,26 @@ def create_app():
             from sqlalchemy import text
             print("INFO: Checking for missing columns and tables...")
             
-            # 1. Ensure expiry_date column exists in all relevant tables
-            tables_to_check = ['supply_requests', 'supplier_bills', 'supplier_quotes']
-            for table in tables_to_check:
+            # 1. Ensure columns exist in relevant tables
+            migration_tasks = [
+                ('supply_requests', 'expiry_date', 'DATE'),
+                ('supplier_bills', 'expiry_date', 'DATE'),
+                ('supplier_quotes', 'expiry_date', 'DATE'),
+                ('transactions', 'gst_amount', 'FLOAT DEFAULT 0.0'),
+                ('transactions', 'total_amount', 'FLOAT')
+            ]
+            
+            for table, column, col_type in migration_tasks:
                 try:
-                    # Try to select the column to see if it exists
-                    db.session.execute(text(f"SELECT expiry_date FROM {table} LIMIT 1"))
+                    # Check if column already exists
+                    db.session.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))
                 except Exception:
                     db.session.rollback()
-                    print(f"INFO: Adding 'expiry_date' column to '{table}'...")
-                    # Add based on database type
+                    print(f"INFO: Adding '{column}' column to '{table}'...")
                     is_postgres = 'postgresql' in str(db.engine.url)
-                    if is_postgres:
-                        db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN expiry_date DATE"))
-                    else:
-                        db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN expiry_date DATE"))
+                    db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
                     db.session.commit()
-                    print(f"SUCCESS: Added 'expiry_date' to '{table}'")
+                    print(f"SUCCESS: Added '{column}' to '{table}'")
 
             # 2. Ensure product_batches table exists
             try:

@@ -183,6 +183,27 @@ const ShopDashboard = () => {
     setUpdatingOrderStatus(false);
   };
 
+  const getGstRate = (name, category) => {
+    if (!name) return 0.18;
+    const n = name.toLowerCase().trim();
+    const c = (category || "").toLowerCase().trim();
+
+    const exempt = ["milk", "curd", "lassi", "paneer", "vegetable", "fruit", "pulse", "wheat flour", "atta", "rice", "salt", "honey", "roti", "naan", "khakhra", "chapati", "papad", "besan", "stamp", "postal", "book", "newspaper", "bangle", "earthenware", "sanitary napkin"];
+    const reduced = ["butter", "ghee", "cheese", "paneer", "namkeen", "bhujia", "jam", "jelly", "pasta", "cornflake", "oil", "shampoo", "soap", "toothpaste", "toothbrush", "detergent", "tableware", "kitchenware", "sewing machine"];
+
+    const isBranded = n.includes("branded") || n.includes("packaged") || n.includes("processed");
+
+    if (!isBranded) {
+      if (exempt.some(item => n.includes(item) || c.includes(item))) {
+        if (n.includes("paneer") && isBranded) return 0.05;
+        return 0;
+      }
+    }
+
+    if (reduced.some(item => n.includes(item) || c.includes(item))) return 0.05;
+    return 0.18;
+  };
+
   const handleAddSalesman = async (e) => {
     e.preventDefault();
     try {
@@ -1436,7 +1457,8 @@ const ShopDashboard = () => {
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Qty</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Salesman</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Badge</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Subtotal</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">GST</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
                       </tr>
                       </thead>
@@ -1454,15 +1476,9 @@ const ShopDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.quantity || 0}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium">{record.customer_name || '-'}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium">{record.salesman}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {(() => { const b = badgeForQty(record.quantity); return <span className={`px-3 py-1 inline-flex text-xs font-semibold rounded-full ${b.cls}`}>{b.label}</span>; })()}
-                            {record.is_birthday_sale && (
-                              <span className="ml-2 px-3 py-1 inline-flex text-xs font-bold rounded-full bg-purple-100 text-purple-800 animate-pulse border border-purple-200">
-                                🎂 Birthday Discount
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">₹{Number(record.total_price || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹{Number(record.total_price || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹{Number(record.gst_amount || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">₹{Number(record.grand_total || record.total_price || 0).toLocaleString('en-IN')}</td>
                           </tr>
                       ))}
                       {history.length === 0 && (
@@ -2484,24 +2500,48 @@ const ShopDashboard = () => {
                     </div>
                   </div>
                 )}
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-gray-500">Total Price</span>
-                  <div className="text-right">
-                    {(() => {
-                      const currentPrice = selectedUnit ? selectedUnit.selling_price : sellingProduct.price;
-                      const baseTotal = currentPrice * sellQuantity;
-                      if (sellCustomer.is_birthday && sellCustomer.birthday_discount > 0) {
-                        return (
-                          <>
-                            <span className="text-sm line-through text-gray-400 mr-2">₹{baseTotal.toFixed(2)}</span>
-                            <span className="text-xl font-bold text-green-600">
-                              ₹{(baseTotal * (1 - sellCustomer.birthday_discount / 100)).toFixed(2)}
-                            </span>
-                          </>
-                        );
-                      }
-                      return <span className="text-xl font-bold text-green-600">₹{baseTotal.toFixed(2)}</span>;
-                    })()}
+                <div className="flex flex-col space-y-2 mb-4 pt-2 border-t border-gray-100">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500">Subtotal</span>
+                    <span className="text-gray-700 font-medium">
+                      {(() => {
+                        const currentPrice = selectedUnit ? selectedUnit.selling_price : sellingProduct.price;
+                        let baseTotal = currentPrice * sellQuantity;
+                        if (sellCustomer.is_birthday && sellCustomer.birthday_discount > 0) {
+                          baseTotal *= (1 - sellCustomer.birthday_discount / 100);
+                        }
+                        return `₹${baseTotal.toFixed(2)}`;
+                      })()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 italic">GST ({(getGstRate(sellingProduct.name, sellingProduct.category) * 100).toFixed(0)}%)</span>
+                    <span className="text-gray-700 font-medium">
+                      {(() => {
+                        const currentPrice = selectedUnit ? selectedUnit.selling_price : sellingProduct.price;
+                        let baseTotal = currentPrice * sellQuantity;
+                        if (sellCustomer.is_birthday && sellCustomer.birthday_discount > 0) {
+                          baseTotal *= (1 - sellCustomer.birthday_discount / 100);
+                        }
+                        const gstRate = getGstRate(sellingProduct.name, sellingProduct.category);
+                        return `₹${(baseTotal * gstRate).toFixed(2)}`;
+                      })()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
+                    <span className="text-gray-800 font-bold">Grand Total</span>
+                    <div className="text-right">
+                      {(() => {
+                        const currentPrice = selectedUnit ? selectedUnit.selling_price : sellingProduct.price;
+                        let baseTotal = currentPrice * sellQuantity;
+                        if (sellCustomer.is_birthday && sellCustomer.birthday_discount > 0) {
+                          baseTotal *= (1 - sellCustomer.birthday_discount / 100);
+                        }
+                        const gstRate = getGstRate(sellingProduct.name, sellingProduct.category);
+                        const grandTotal = baseTotal * (1 + gstRate);
+                        return <span className="text-2xl font-black text-green-600">₹{grandTotal.toFixed(2)}</span>;
+                      })()}
+                    </div>
                   </div>
                 </div>
                 <button 

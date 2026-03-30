@@ -204,11 +204,19 @@ def record_transaction():
 
         # 7. Finalize Transaction
         try:
+            # Calculate GST based on Indian GST Rules
+            from services.gst_service import get_gst_rate
+            gst_rate = get_gst_rate(product.name, product.category)
+            
+            subtotal = unit_price * quantity
+            gst_amount = subtotal * gst_rate
+            grand_total = subtotal + gst_amount
+            
             salesman_obj = Salesman.query.filter_by(salesman_id_code=salesman_id_code).first()
             salesman_db_id = salesman_obj.id if salesman_obj else None
             incentive = 0.0
             if transaction_type == 'SALE' and salesman_obj:
-                incentive = ((unit_price * quantity) * salesman_obj.incentive_rate) / 100.0
+                incentive = (subtotal * salesman_obj.incentive_rate) / 100.0
 
             new_tx = Transaction(
                 shop_id=product.shop_id,
@@ -221,6 +229,8 @@ def record_transaction():
                 incentive_amount=float(incentive),
                 is_birthday_sale=is_birthday_sale,
                 discount_amount=float(final_discount * quantity),
+                gst_amount=float(gst_amount),
+                total_amount=float(grand_total),
                 unit_type=unit_type,
                 unit_value=unit_value
             )
@@ -228,11 +238,11 @@ def record_transaction():
             if transaction_type == 'SALE' and customer_db_id:
                 customer_obj = Customer.query.get(customer_db_id)
                 if customer_obj:
-                    customer_obj.loyalty_points = (customer_obj.loyalty_points or 0) + int((unit_price * quantity) / 100)
+                    customer_obj.loyalty_points = (customer_obj.loyalty_points or 0) + int(subtotal / 100)
 
             db.session.add(new_tx)
             db.session.commit()
-            print(f"DEBUG: Transaction {new_tx.id} committed successfully")
+            print(f"DEBUG: Transaction {new_tx.id} committed successfully (GST: {gst_amount})")
         except Exception as tx_err:
             db.session.rollback()
             print(f"ERROR: Failed to commit transaction: {tx_err}")
@@ -568,13 +578,19 @@ def get_sales_history():
                     date_str = str(date_val)
 
             pid = r.get('product_id')
+            subtotal = float((r.get('quantity') or 0) * (r.get('unit_price') or 0))
+            gst_amt = r.get('gst_amount') or 0.0
+            total_amt = r.get('total_amount') or (subtotal + gst_amt)
+
             history.append({
                 "id": r.get('id'),
                 "product_id": pid,
                 "product_name": r.get('product_name') or f"Product #{pid}",
                 "date": date_str,
                 "quantity": r.get('quantity'),
-                "total_price": float((r.get('quantity') or 0) * (r.get('unit_price') or 0)),
+                "total_price": subtotal,
+                "gst_amount": float(gst_amt),
+                "grand_total": float(total_amt),
                 "salesman": r.get('salesman_name') or "System",
                 "customer_name": r.get('customer_name') or "-",
                 "is_birthday_sale": bool(r.get('is_birthday_sale')),
