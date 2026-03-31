@@ -97,7 +97,6 @@ def create_app():
                     INSERT INTO product_batches (product_id, unit_option_id, quantity)
                     SELECT product_id, id, stock_quantity FROM product_unit_options WHERE stock_quantity > 0
                 """))
-                # From products (no variations)
                 db.session.execute(text("""
                     INSERT INTO product_batches (product_id, quantity, expiry_date)
                     SELECT id, stock_quantity, expiry_date FROM products 
@@ -105,6 +104,19 @@ def create_app():
                 """))
                 db.session.commit()
                 print("SUCCESS: Stock migration to batches completed.")
+
+            # NEW: Column verification for Birthday Discounts
+            try:
+                print("INFO: Checking for birthday_discount_applied columns...")
+                # 1. monthly_ration_orders
+                db.session.execute(text("ALTER TABLE monthly_ration_orders ADD COLUMN IF NOT EXISTS birthday_discount_applied BOOLEAN DEFAULT FALSE;"))
+                # 2. sales
+                db.session.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS birthday_discount_applied BOOLEAN DEFAULT FALSE;"))
+                db.session.commit()
+                print("SUCCESS: Birthday discount columns verified.")
+            except Exception as col_err:
+                db.session.rollback()
+                print(f"WARNING: Could not auto-add columns: {col_err}")
 
             print("INFO: All database migrations verified.")
         except Exception as me:
