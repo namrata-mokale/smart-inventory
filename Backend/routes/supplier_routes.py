@@ -186,7 +186,7 @@ def get_supply_requests():
                 "is_winner": existing_quote.status == 'Accepted' if existing_quote else False,
                 "is_top_customer": req.shop_id == top_shop_id if top_shop_id else False,
                 "expiry_date": req.expiry_date.strftime('%Y-%m-%d') if req.expiry_date else None,
-                "gst_rate": get_gst_rate(p_name, req.product.category if req.product else None)
+                "gst_rate": get_gst_rate(p_name, req.product.category if req.product else None) if 'get_gst_rate' in globals() else 0.18
             })
             
         return jsonify(result), 200
