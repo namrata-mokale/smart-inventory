@@ -194,7 +194,13 @@ def record_transaction():
                 offer_code = data.get('birthday_offer_code')
                 if offer_code:
                     off = BirthdayOffer.query.filter_by(offer_code=offer_code).first()
-                    if off: off.is_used = True
+                    if off: 
+                        off.is_used = True
+                        # Mark the customer's annual reward as used
+                        cust = Customer.query.get(customer_db_id)
+                        if cust:
+                            cust.birthday_reward_used = True
+                            db.session.add(cust)
             elif product.expiry_date:
                 days = (product.expiry_date - datetime.now().date()).days
                 if 0 <= days <= 7:
@@ -202,13 +208,36 @@ def record_transaction():
                     unit_price -= expiry_disc
                     final_discount = expiry_disc
 
-        # 7. Finalize Transaction
+        # 4. Finalize Transaction
         try:
+            # Check for birthday status and if reward already used
+            from datetime import datetime as dt
+            is_birthday_sale = False
+            final_discount = 0.0
+            
+            if customer_db_id:
+                customer_obj = Customer.query.get(customer_db_id)
+                if customer_obj and customer_obj.dob:
+                    # Logic to check if today is birthday (MM-DD match)
+                    try:
+                        dob_dt = dt.strptime(customer_obj.dob, '%Y-%m-%d')
+                        today = dt.now()
+                        if dob_dt.month == today.month and dob_dt.day == today.day:
+                            if not customer_obj.birthday_reward_used:
+                                is_birthday_sale = True
+                                final_discount = 15.0 # Fixed 15% birthday discount
+                                print(f"DEBUG: Applying birthday discount for {customer_obj.name}")
+                            else:
+                                print(f"DEBUG: Birthday reward already used for {customer_obj.name}")
+                    except: pass
+
             # Calculate GST based on Indian GST Rules
             from services.gst_service import get_gst_rate
             gst_rate = get_gst_rate(product.name, product.category)
             
-            subtotal = unit_price * quantity
+            # Apply discount to unit price
+            discounted_unit_price = unit_price * (1 - final_discount / 100.0)
+            subtotal = discounted_unit_price * quantity
             gst_amount = subtotal * gst_rate
             grand_total = subtotal + gst_amount
             
@@ -228,7 +257,7 @@ def record_transaction():
                 customer_id=customer_db_id,
                 incentive_amount=float(incentive),
                 is_birthday_sale=is_birthday_sale,
-                discount_amount=float(final_discount * quantity),
+                discount_amount=float((unit_price - discounted_unit_price) * quantity),
                 gst_amount=float(gst_amount),
                 total_amount=float(grand_total),
                 unit_type=unit_type,
@@ -239,10 +268,12 @@ def record_transaction():
                 customer_obj = Customer.query.get(customer_db_id)
                 if customer_obj:
                     customer_obj.loyalty_points = (customer_obj.loyalty_points or 0) + int(subtotal / 100)
+                    if is_birthday_sale:
+                        customer_obj.birthday_reward_used = True
 
             db.session.add(new_tx)
             db.session.commit()
-            print(f"DEBUG: Transaction {new_tx.id} committed successfully (GST: {gst_amount})")
+            print(f"DEBUG: Transaction {new_tx.id} committed successfully (GST: {gst_amount}, Birthday: {is_birthday_sale})")
         except Exception as tx_err:
             db.session.rollback()
             print(f"ERROR: Failed to commit transaction: {tx_err}")
@@ -1251,6 +1282,101 @@ def accept_quote(quote_id):
         import traceback
         traceback.print_exc()
         return jsonify({"message": f"Server Error: {str(e)}"}), 500
+
+def deduct_ration_stock(order_id):
+    from models.customer import MonthlyRationOrder
+    from models.inventory import Product, ProductBatch, ProductUnitOption, Transaction
+    from models.db import db
+    
+    order = MonthlyRationOrder.query.get(order_id)
+    if not order:
+        return False, "Order not found"
+        
+    # DEDUCT STOCK FOR EACH ITEM IN RATION ORDER (FIFO logic)
+    for item in order.items:
+        product = Product.query.get(item.product_id)
+        if not product: continue
+        
+        quantity = float(item.quantity)
+        
+        # 1. Variation Deduction
+        if item.unit_option_id:
+            opt = ProductUnitOption.query.get(item.unit_option_id)
+            if opt:
+                # Deduct from batches
+                remaining = quantity
+                batches = ProductBatch.query.filter_by(unit_option_id=opt.id).order_by(ProductBatch.created_at.asc()).all()
+                for b in batches:
+                    if remaining <= 0: break
+                    if b.quantity <= remaining:
+                        remaining -= b.quantity
+                        db.session.delete(b)
+                    else:
+                        b.quantity -= remaining
+                        remaining = 0
+                
+                opt.stock_quantity -= quantity
+                if opt.stock_quantity < 0: opt.stock_quantity = 0
+                # Update main product total
+                product.stock_quantity = sum(o.stock_quantity for o in product.unit_options)
+        
+        # 2. Main Product Deduction
+        else:
+            remaining = quantity
+            batches = ProductBatch.query.filter_by(product_id=product.id, unit_option_id=None).order_by(ProductBatch.created_at.asc()).all()
+            for b in batches:
+                if remaining <= 0: break
+                if b.quantity <= remaining:
+                    remaining -= b.quantity
+                    db.session.delete(b)
+                else:
+                    b.quantity -= remaining
+                    remaining = 0
+            
+            product.stock_quantity -= quantity
+            if product.stock_quantity < 0: product.stock_quantity = 0
+        
+        # Record Transaction
+        new_tx = Transaction(
+            shop_id=order.shop_id,
+            product_id=product.id,
+            transaction_type='SALE',
+            quantity=quantity,
+            unit_price=item.price_at_order,
+            customer_id=order.customer_id,
+            total_amount=item.price_at_order * quantity,
+            unit_type=item.unit,
+            unit_value=1.0 # Heuristic
+        )
+        db.session.add(new_tx)
+    return True, "Stock deducted"
+
+@inventory_bp.route('/ration-orders/<int:order_id>/pay', methods=['POST'])
+@jwt_required()
+def pay_ration_order(order_id):
+    try:
+        from models.customer import MonthlyRationOrder
+        from models.db import db
+        
+        order = MonthlyRationOrder.query.get(order_id)
+        if not order:
+            return jsonify({"message": "Order not found"}), 404
+            
+        if order.payment_status == 'paid':
+            return jsonify({"message": "Order already paid"}), 200
+
+        order.payment_status = 'paid'
+        success, msg = deduct_ration_stock(order.id)
+        if not success:
+            return jsonify({"message": msg}), 400
+
+        db.session.commit()
+        return jsonify({"message": "Order paid and stock updated in real-time"}), 200
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({"message": str(e)}), 500
 
 @inventory_bp.route('/bills/<int:bill_id>/retry-restock', methods=['POST'])
 @jwt_required()

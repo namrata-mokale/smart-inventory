@@ -14,6 +14,7 @@ class Customer(db.Model):
     last_birthday_wish = db.Column(db.Date, nullable=True) # Last time a birthday wish was sent
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True) # Link to User model if registered
     loyalty_points = db.Column(db.Integer, default=0)
+    birthday_reward_used = db.Column(db.Boolean, default=False) # Only one reward per year
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Birthday offers

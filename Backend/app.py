@@ -40,7 +40,8 @@ def create_app():
                 ('supplier_bills', 'shop_unit_price', 'FLOAT'),
                 ('supplier_quotes', 'expiry_date', 'DATE'),
                 ('transactions', 'gst_amount', 'FLOAT DEFAULT 0.0'),
-                ('transactions', 'total_amount', 'FLOAT')
+                ('transactions', 'total_amount', 'FLOAT'),
+                ('customers', 'birthday_reward_used', 'BOOLEAN DEFAULT FALSE')
             ]
             
             for table, column, col_type in migration_tasks:

@@ -187,8 +187,10 @@ const CustomerDashboard = () => {
     setIsSavingRation(false);
   };
 
+  const [selectedBirthdayOffer, setSelectedBirthdayOffer] = useState(null);
+
   const submitRation = async (rationId, paymentMethod) => {
-    console.log("DEBUG: submitRation called", { rationId, paymentMethod });
+    console.log("DEBUG: submitRation called", { rationId, paymentMethod, selectedBirthdayOffer });
     if (!rationId) {
       alert("Error: Ration ID is missing.");
       return;
@@ -217,7 +219,8 @@ const CustomerDashboard = () => {
           payment_method: paymentMethod,
           delivery_name: deliveryDetails.name,
           delivery_phone: deliveryDetails.phone,
-          delivery_address: deliveryDetails.address
+          delivery_address: deliveryDetails.address,
+          birthday_offer_code: selectedBirthdayOffer ? selectedBirthdayOffer.offer_code : null
         })
       });
       
@@ -233,13 +236,15 @@ const CustomerDashboard = () => {
         const finalTotal = result.bill?.total || result.total || (pendingOrder.items || []).reduce((acc, i) => acc + (i.price * i.quantity), 0) + (paymentMethod === 'cod' ? 50 : 0);
         const finalOrderId = result.order_id || result.bill?.order_id || "NEW";
         
-        alert(`✅ Order Placed Successfully!\n\nOrder ID: #ORD-${finalOrderId}\nCustomer: ${finalName}\nTotal: ₹${parseFloat(finalTotal).toFixed(2)}\nDelivery to: ${finalAddress}`);
+        alert(`✅ Order Placed Successfully!\n\nOrder ID: #ORD-${finalOrderId}\nCustomer: ${finalName}\nTotal: ₹${parseFloat(finalTotal).toFixed(2)}\nDelivery to: ${finalAddress}${selectedBirthdayOffer ? `\n\n🎂 Birthday Discount Applied: ${selectedBirthdayOffer.discount_percent}% OFF` : ''}`);
         
         setShowPaymentModal(false);
         setShowQR(false);
         setDeliveryDetails({ name: '', address: '', phone: '' }); // Reset local form
+        setSelectedBirthdayOffer(null); // Reset offer
         fetchExistingRations();
         fetchMyRationOrders();
+        fetchBirthdayOffers(); // Refresh offers (to hide used one)
       } else {
         alert(`❌ Failed to place order: ${result.message || "Unknown error"}`);
       }
@@ -962,9 +967,48 @@ const CustomerDashboard = () => {
                   </div>
 
                   <div className="space-y-4">
+                    {/* Birthday Offer Selection */}
+                    {birthdayOffers.some(o => o.shop_id === pendingOrder.shop_id) && (
+                      <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100">
+                        <label className="text-xs font-black uppercase text-purple-600 tracking-wider flex items-center mb-2">
+                          <span className="mr-2">🎂</span> Birthday Discount Available!
+                        </label>
+                        <select 
+                          className="w-full bg-white border border-purple-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none font-bold text-purple-700"
+                          value={selectedBirthdayOffer?.id || ''}
+                          onChange={(e) => {
+                            const offer = birthdayOffers.find(o => o.id === parseInt(e.target.value));
+                            setSelectedBirthdayOffer(offer || null);
+                          }}
+                        >
+                          <option value="">Don't apply discount</option>
+                          {birthdayOffers.filter(o => o.shop_id === pendingOrder.shop_id).map(offer => (
+                            <option key={offer.id} value={offer.id}>
+                              {offer.discount_percent}% OFF - {offer.offer_code}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedBirthdayOffer && (
+                          <p className="text-[10px] text-purple-500 mt-2 font-medium italic">
+                            Discount of ₹{(( (pendingOrder.items || []).reduce((acc, i) => acc + (i.price * i.quantity), 0) * selectedBirthdayOffer.discount_percent ) / 100).toFixed(2)} will be applied!
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="bg-gray-50 rounded-2xl p-4 flex justify-between items-center">
                       <span className="text-gray-600 font-medium">Items Total:</span>
-                      <span className="text-lg font-bold text-gray-800">₹{ (pendingOrder.items || []).reduce((acc, i) => acc + (i.price * i.quantity), 0).toFixed(2) }</span>
+                      <div className="text-right">
+                        {selectedBirthdayOffer && (
+                          <span className="text-xs text-gray-400 line-through block">₹{ (pendingOrder.items || []).reduce((acc, i) => acc + (i.price * i.quantity), 0).toFixed(2) }</span>
+                        )}
+                        <span className="text-lg font-bold text-gray-800">
+                          ₹{ (
+                            (pendingOrder.items || []).reduce((acc, i) => acc + (i.price * i.quantity), 0) * 
+                            (selectedBirthdayOffer ? (1 - selectedBirthdayOffer.discount_percent / 100) : 1)
+                          ).toFixed(2) }
+                        </span>
+                      </div>
                     </div>
                     <div className="bg-orange-50 rounded-2xl p-4 flex justify-between items-center border border-orange-100">
                       <span className="text-orange-700 font-medium flex items-center">
@@ -989,7 +1033,10 @@ const CustomerDashboard = () => {
                       className="w-full py-4 border-2 border-indigo-100 text-indigo-600 rounded-2xl font-bold hover:bg-indigo-50 transition-all flex items-center justify-center space-x-3"
                     >
                       <FaStore />
-                      <span>Cash on Delivery (₹{ ((pendingOrder.items || []).reduce((acc, i) => acc + (i.price * i.quantity), 0) + 50).toFixed(2) })</span>
+                      <span>Cash on Delivery (₹{ (
+                        (pendingOrder.items || []).reduce((acc, i) => acc + (i.price * i.quantity), 0) * 
+                        (selectedBirthdayOffer ? (1 - selectedBirthdayOffer.discount_percent / 100) : 1) + 50
+                      ).toFixed(2) })</span>
                     </button>
                   </div>
                 </>
@@ -1002,7 +1049,10 @@ const CustomerDashboard = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="font-bold text-gray-800 text-lg">Scan to Pay ₹{ (pendingOrder.items || []).reduce((acc, i) => acc + (i.price * i.quantity), 0).toFixed(2) }</p>
+                    <p className="font-bold text-gray-800 text-lg">Scan to Pay ₹{ (
+                      (pendingOrder.items || []).reduce((acc, i) => acc + (i.price * i.quantity), 0) * 
+                      (selectedBirthdayOffer ? (1 - selectedBirthdayOffer.discount_percent / 100) : 1)
+                    ).toFixed(2) }</p>
                     <p className="text-xs text-gray-500">Scan this QR with any UPI app (GPay, PhonePe, etc.) to complete your order.</p>
                   </div>
                   <div className="flex space-x-3">

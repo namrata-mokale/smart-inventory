@@ -178,17 +178,66 @@ def get_all_shops():
 @customer_bp.route('/birthday-offers', methods=['GET'])
 @jwt_required()
 def get_birthday_offers():
-    from datetime import date
-    from models import BirthdayOffer
+    from datetime import date, timedelta
+    import random
+    import string
+    from models import BirthdayOffer, Shop
     current_user = get_jwt_identity()
     customer = Customer.query.filter_by(user_id=current_user['id']).first()
     if not customer:
         return jsonify([])
         
+    today = date.today()
+    
+    # Check if today is birthday and reward not used this year
+    is_birthday = False
+    if customer.dob:
+        try:
+            # Handle different DOB formats
+            dob_str = customer.dob
+            if '-' in dob_str:
+                dob_parts = dob_str.split('-')
+                if len(dob_parts) == 3: # YYYY-MM-DD or DD-MM-YYYY
+                    if len(dob_parts[0]) == 4: # YYYY-MM-DD
+                        dob_month_day = f"{dob_parts[1]}-{dob_parts[2]}"
+                    else: # DD-MM-YYYY
+                        dob_month_day = f"{dob_parts[1]}-{dob_parts[0]}"
+                elif len(dob_parts) == 2: # MM-DD
+                    dob_month_day = dob_str
+            
+            if dob_month_day == today.strftime('%m-%d'):
+                is_birthday = True
+        except:
+            pass
+
+    # If it's birthday and no offers for today yet, generate random offers for linked shops
+    if is_birthday:
+        # Check if we already generated offers for this birthday (last_birthday_wish can track this)
+        # Using birthday_reward_used as a primary flag for usage, but we can generate offers if not used.
+        existing_offers = BirthdayOffer.query.filter_by(customer_id=customer.id, is_used=False).filter(BirthdayOffer.valid_until >= today).all()
+        
+        if not existing_offers and not customer.birthday_reward_used:
+            # Generate random offers for each linked shop
+            for shop in customer.shops:
+                # Random discount between 10% and 25%
+                discount = random.choice([10, 15, 20, 25])
+                offer_code = 'BDAY-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                
+                new_offer = BirthdayOffer(
+                    customer_id=customer.id,
+                    shop_id=shop.id,
+                    discount_percent=discount,
+                    offer_code=offer_code,
+                    offer_text=f"Special {discount}% Birthday Discount for you at {shop.name}!",
+                    valid_until=today + timedelta(days=7) # Valid for a week
+                )
+                db.session.add(new_offer)
+            db.session.commit()
+            
     offers = BirthdayOffer.query.filter_by(
         customer_id=customer.id, 
         is_used=False
-    ).filter(BirthdayOffer.valid_until >= date.today()).all()
+    ).filter(BirthdayOffer.valid_until >= today).all()
     
     return jsonify([{
         "id": o.id,
@@ -506,6 +555,7 @@ def save_monthly_ration():
 @customer_bp.route('/submit-ration', methods=['POST'])
 @jwt_required()
 def submit_ration():
+    from models import BirthdayOffer
     current_user = get_jwt_identity()
     customer = Customer.query.filter_by(user_id=current_user['id']).first()
     if not customer:
@@ -517,6 +567,7 @@ def submit_ration():
     delivery_name = data.get('delivery_name')
     delivery_phone = data.get('delivery_phone')
     delivery_address = data.get('delivery_address')
+    birthday_offer_code = data.get('birthday_offer_code')
     
     ration = MonthlyRation.query.get(ration_id)
     if not ration or ration.customer_id != customer.id:
@@ -547,6 +598,25 @@ def submit_ration():
     if not items_to_create:
         return jsonify({"message": "Ration plan is empty"}), 400
 
+    # Handle Birthday Discount
+    applied_discount = 0
+    if birthday_offer_code:
+        offer = BirthdayOffer.query.filter_by(
+            offer_code=birthday_offer_code, 
+            customer_id=customer.id, 
+            shop_id=ration.shop_id,
+            is_used=False
+        ).first()
+        
+        if offer and not customer.birthday_reward_used:
+            applied_discount = (total_amount * offer.discount_percent) / 100.0
+            total_amount -= applied_discount
+            offer.is_used = True
+            customer.birthday_reward_used = True # Mark as used for the year
+            print(f"DEBUG: Applied birthday discount of {offer.discount_percent}%: -INR {applied_discount}")
+        else:
+            print("DEBUG: Invalid or already used birthday offer code")
+
     # Apply COD fee
     if payment_method == 'cod':
         total_amount += 50
@@ -572,6 +642,18 @@ def submit_ration():
     # Update ration status
     ration.status = 'submitted'
     
+    # NEW: Real-time stock deduction for online orders
+    if payment_method == 'online':
+        try:
+            from .inventory_routes import deduct_ration_stock
+            success, msg = deduct_ration_stock(new_order.id)
+            if success:
+                print(f"DEBUG: Real-time stock deducted for order {new_order.id}")
+            else:
+                print(f"DEBUG: Stock deduction failed: {msg}")
+        except Exception as e:
+            print(f"DEBUG: Error in real-time stock deduction: {e}")
+
     db.session.commit()
     
     # Notify shop owner
@@ -688,6 +770,17 @@ def update_order_status(order_id):
     if new_status:
         order.delivery_status = new_status
     if new_payment_status:
+        # If order was not paid but now is being marked as paid, deduct stock
+        if order.payment_status != 'paid' and new_payment_status == 'paid':
+            try:
+                from .inventory_routes import deduct_ration_stock
+                success, msg = deduct_ration_stock(order.id)
+                if success:
+                    print(f"DEBUG: Real-time stock deducted for order {order.id} on payment update")
+                else:
+                    print(f"DEBUG: Stock deduction failed on payment update: {msg}")
+            except Exception as e:
+                print(f"DEBUG: Error in stock deduction on payment update: {e}")
         order.payment_status = new_payment_status
         
     db.session.commit()
