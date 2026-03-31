@@ -911,6 +911,7 @@ const ShopDashboard = () => {
           {(role === 'shop_owner' || role === 'salesman') && <SidebarItem id="product_sales" icon={FaChartLine} label="Product Sales" />}
           {role === 'shop_owner' && <SidebarItem id="analytics" icon={FaChartLine} label="Analytics & AI" />}
           {role === 'shop_owner' && <SidebarItem id="bills" icon={FaBell} label="Bills" />}
+          {role === 'shop_owner' && <SidebarItem id="profit_loss" icon={FaChartLine} label="Profit & Loss" />}
           {role === 'shop_owner' && <SidebarItem id="orders" icon={FaBox} label="My Orders" />}
           {role === 'shop_owner' && <SidebarItem id="suppliers" icon={FaEnvelope} label="Suppliers" />}
           {role === 'shop_owner' && <SidebarItem id="ration_orders" icon={FaClipboardList} label="Ration Orders" />}
@@ -939,6 +940,7 @@ const ShopDashboard = () => {
             {activeTab === 'product_sales' && 'Product Sales'}
             {activeTab === 'analytics' && 'Business Intelligence'}
             {activeTab === 'bills' && 'Supplier Bills'}
+            {activeTab === 'profit_loss' && 'Profit & Loss Analysis'}
             {activeTab === 'orders' && 'My Orders'}
             {activeTab === 'suppliers' && 'Manage Suppliers'}
             {activeTab === 'ration_orders' && 'Customer Ration Orders'}
@@ -1723,6 +1725,92 @@ const ShopDashboard = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {activeTab === 'profit_loss' && (
+            <div className="space-y-6">
+              {/* SUMMARY CARDS */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <p className="text-sm text-gray-500 font-medium">Total Orders Analyzed</p>
+                  <h3 className="text-2xl font-bold text-gray-800">{bills.filter(b => b.status === 'Paid' && b.shop_unit_price).length}</h3>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <p className="text-sm text-gray-500 font-medium">Net Profit/Loss (Supplier Orders)</p>
+                  {(() => {
+                    const net = bills.filter(b => b.status === 'Paid' && b.shop_unit_price)
+                      .reduce((acc, b) => acc + (b.shop_unit_price - b.unit_price) * b.quantity, 0);
+                    return (
+                      <h3 className={`text-2xl font-bold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {net >= 0 ? '+' : ''}₹{net.toFixed(2)}
+                      </h3>
+                    );
+                  })()}
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <p className="text-sm text-gray-500 font-medium">Current Month Performance</p>
+                  {(() => {
+                    const now = new Date();
+                    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                    const net = bills.filter(b => b.status === 'Paid' && b.shop_unit_price && b.date.startsWith(currentMonth))
+                      .reduce((acc, b) => acc + (b.shop_unit_price - b.unit_price) * b.quantity, 0);
+                    return (
+                      <h3 className={`text-2xl font-bold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {net >= 0 ? '+' : ''}₹{net.toFixed(2)}
+                      </h3>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* DETAILED TABLE */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-8 py-6 border-b border-gray-100">
+                  <h3 className="text-lg font-bold text-gray-800">Supplier Price vs Shop Price Analysis</h3>
+                  <p className="text-xs text-gray-500 mt-1">* Profit/Loss calculated as: (Shop Selling Price - Supplier Cost Price) × Quantity</p>
+                </div>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Product</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Qty</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Shop Price</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Supplier Price</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Difference</th>
+                      <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase">Net Impact</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {bills.filter(b => b.status === 'Paid' && b.shop_unit_price).map(b => {
+                      const diff = b.shop_unit_price - b.unit_price;
+                      const impact = diff * b.quantity;
+                      return (
+                        <tr key={b.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{b.date}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {b.product}
+                            <span className="ml-2 text-[10px] text-gray-400">({b.unit_value} {b.unit_type})</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{b.quantity}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-bold">₹{b.shop_unit_price.toFixed(2)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-bold">₹{b.unit_price.toFixed(2)}</td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${diff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {diff >= 0 ? '+' : ''}₹{diff.toFixed(2)}
+                          </td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-black ${impact >= 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
+                            {impact >= 0 ? '+' : ''}₹{impact.toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {bills.filter(b => b.status === 'Paid' && b.shop_unit_price).length === 0 && (
+                      <tr><td colSpan="7" className="px-6 py-12 text-center text-gray-500 italic">No historical orders with price analysis available yet. New orders will appear here after they are paid.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

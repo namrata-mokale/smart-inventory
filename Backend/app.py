@@ -37,6 +37,7 @@ def create_app():
             migration_tasks = [
                 ('supply_requests', 'expiry_date', 'DATE'),
                 ('supplier_bills', 'expiry_date', 'DATE'),
+                ('supplier_bills', 'shop_unit_price', 'FLOAT'),
                 ('supplier_quotes', 'expiry_date', 'DATE'),
                 ('transactions', 'gst_amount', 'FLOAT DEFAULT 0.0'),
                 ('transactions', 'total_amount', 'FLOAT')

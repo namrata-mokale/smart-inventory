@@ -39,6 +39,7 @@ def list_shop_bills():
             "supplier": supplier.company_name if supplier else None,
             "quantity": b.quantity,
             "unit_price": b.unit_price,
+            "shop_unit_price": b.shop_unit_price, # Return shop's selling price for analysis
             "discount_percent": b.discount_percent,
             "total": b.total,
             "gst_amount": b.gst_amount,

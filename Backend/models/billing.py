@@ -12,6 +12,7 @@ class SupplierBill(db.Model):
     unit_type = db.Column(db.String(20)) # Added for variation support
     unit_value = db.Column(db.Float) # Added for variation support
     unit_price = db.Column(db.Float, nullable=False)
+    shop_unit_price = db.Column(db.Float, nullable=True) # Shop's current selling price at time of order
     discount_percent = db.Column(db.Float, default=0.0)
     total = db.Column(db.Float, nullable=False) # Subtotal
     gst_amount = db.Column(db.Float, default=0.0)

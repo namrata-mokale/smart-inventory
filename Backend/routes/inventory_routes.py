@@ -1193,7 +1193,19 @@ def accept_quote(quote_id):
         req.supplier_id = q.supplier_id
         req.status = 'Awaiting Payment'
         
-        # 3. Create bill
+        # 3. Capture shop's current selling price for profit/loss analysis
+        from models import ProductUnitOption
+        shop_unit_price = req.product.selling_price
+        if req.unit_type and req.unit_value:
+            opt = ProductUnitOption.query.filter_by(
+                product_id=req.product_id,
+                unit_type=req.unit_type,
+                unit_value=req.unit_value
+            ).first()
+            if opt:
+                shop_unit_price = opt.selling_price
+
+        # 4. Create bill
         from models.billing import SupplierBill
         bill = SupplierBill(
             shop_id=shop_id,
@@ -1204,6 +1216,7 @@ def accept_quote(quote_id):
             unit_type=getattr(req, 'unit_type', 'units'),
             unit_value=getattr(req, 'unit_value', 1.0),
             unit_price=q.unit_price,
+            shop_unit_price=shop_unit_price, # Store shop's selling price
             discount_percent=q.discount_percent,
             total=q.total,
             gst_amount=q.gst_amount,
@@ -1213,7 +1226,7 @@ def accept_quote(quote_id):
         )
         db.session.add(bill)
         
-        # 4. Commit early to ensure DB is updated even if email fails
+        # 5. Commit early to ensure DB is updated even if email fails
         db.session.commit()
         print(f"DEBUG: Bill created successfully for quote {quote_id}")
 
