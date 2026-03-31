@@ -918,12 +918,18 @@ const CustomerDashboard = () => {
       {/* Payment Modal */}
       {showPaymentModal && pendingOrder && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="bg-indigo-600 p-6 text-white text-center">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-indigo-600 p-6 text-white text-center relative shrink-0">
+              <button 
+                onClick={() => setShowPaymentModal(false)}
+                className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
+              >
+                <FaPlus className="transform rotate-45 text-xl" />
+              </button>
               <h3 className="text-xl font-bold">Complete Your Order</h3>
               <p className="text-indigo-100 text-sm mt-1">Select payment method for your monthly ration</p>
             </div>
-            <div className="p-8 space-y-6">
+            <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
               {!showQR ? (
                 <>
                   {/* Delivery Details Form */}
@@ -1038,9 +1044,9 @@ const CustomerDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-3 shrink-0">
                     <button
-                      onClick={() => submitRation(pendingOrder.id, 'online')}
+                      onClick={() => setShowQR(true)}
                       className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center space-x-3 shadow-lg shadow-indigo-100"
                     >
                       <FaQrcode />
@@ -1095,15 +1101,6 @@ const CustomerDashboard = () => {
                     </button>
                   </div>
                 </div>
-              )}
-              
-              {!showQR && (
-                <button 
-                  onClick={() => setShowPaymentModal(false)}
-                  className="w-full py-2 text-gray-400 text-sm font-bold hover:text-gray-600 transition-colors"
-                >
-                  Cancel
-                </button>
               )}
             </div>
           </div>
