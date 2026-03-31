@@ -85,25 +85,30 @@ def get_supply_requests():
         
         top_shop_id = top_shop[0] if top_shop else None
             
-        # 1. GET ALL PENDING/ACTIVE REQUESTS (Most permissive query)
+        # 1. GET ALL REQUESTS (Unfiltered first for debugging)
+        all_reqs = SupplyRequest.query.all()
+        print(f"DEBUG: Total requests in DB: {len(all_reqs)}")
+        
+        # 2. GET LINKED SHOP IDs
+        linked_shop_ids = [s.id for s in supplier.shops]
+        print(f"DEBUG: Supplier {supplier.id} linked shops: {linked_shop_ids}")
+        
+        # 3. FILTER MANUALLY
         active_statuses = ['Pending', 'Quotes Received', 'Awaiting Approval', 'Awaiting Selection', 'Awaiting Payment', 'Paid', 'Shipped', 'Delivered']
         
-        # 2. FETCH REQUESTS
-        # PERMISSIVE: Show if shop is linked OR if request is specifically assigned to this supplier
-        # This was the logic that worked before the complex filters were added.
-        from sqlalchemy import or_
-        linked_shop_ids = [s.id for s in supplier.shops]
+        requests = []
+        for r in all_reqs:
+            # Logic: Show if (Linked Shop OR Assigned to me) AND status is active
+            is_from_linked_shop = r.shop_id in linked_shop_ids
+            is_assigned_to_me = r.supplier_id == supplier.id
+            is_active = r.status in active_statuses
+            
+            if (is_from_linked_shop or is_assigned_to_me) and is_active:
+                requests.append(r)
         
-        requests = SupplyRequest.query.filter(
-            or_(
-                SupplyRequest.shop_id.in_(linked_shop_ids) if linked_shop_ids else False,
-                SupplyRequest.supplier_id == supplier.id
-            )
-        ).filter(SupplyRequest.status.in_(active_statuses)).all()
-        
-        print(f"DEBUG: Found {len(requests)} total requests for linked shops: {linked_shop_ids}")
+        print(f"DEBUG: Final filtered requests count: {len(requests)}")
         for r in requests:
-            print(f"  - Request ID: {r.id}, Shop ID: {r.shop_id}, Status: {r.status}, Supplier ID: {r.supplier_id}")
+            print(f"  - Match: ID {r.id}, Status {r.status}, Shop {r.shop_id}, Supplier {r.supplier_id}")
         
         result = []
         for req in requests:
