@@ -275,8 +275,8 @@ def search_customer_by_phone():
         
     birthday_discount = 0
     offer_code = None
-    if is_birthday and shop_id:
-        # Find active offer for this shop
+    if shop_id:
+        # Find active unused offer for this shop (valid within 5 days of birthday)
         offer = BirthdayOffer.query.filter_by(
             customer_id=customer.id, 
             shop_id=shop_id,
@@ -284,8 +284,10 @@ def search_customer_by_phone():
         ).filter(BirthdayOffer.valid_until >= today).first()
         
         if offer:
+            # We only show the discount if the offer is active and unused
             birthday_discount = offer.discount_percent
             offer_code = offer.offer_code
+            is_birthday = True # Treat as birthday period if offer is active
             
     return jsonify({
         "id": customer.id,
