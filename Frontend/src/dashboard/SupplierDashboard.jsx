@@ -76,6 +76,17 @@ const SupplierDashboard = () => {
     } catch (e) {}
   };
 
+  const handleAddToCatalogFromRequest = (productName, sku) => {
+    setNewItem({
+      ...newItem,
+      name: productName,
+      sku: sku || ''
+    });
+    setActiveTab('products');
+    // Smooth scroll to top to see the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleAddCatalog = async (e) => {
     e.preventDefault();
     try {
@@ -413,11 +424,19 @@ const SupplierDashboard = () => {
                                                 </span>
                                             </div>
                                             {!req.in_catalog && (
-                                                <div className="flex items-center space-x-1 mt-1 text-red-500 font-bold text-[10px] uppercase italic">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                    </svg>
-                                                    <span>Not in your catalog - Update catalog to submit quote</span>
+                                                <div className="flex flex-col mt-1">
+                                                  <div className="flex items-center space-x-1 text-red-500 font-bold text-[10px] uppercase italic">
+                                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                      </svg>
+                                                      <span>Not in your catalog</span>
+                                                  </div>
+                                                  <button 
+                                                    onClick={() => handleAddToCatalogFromRequest(req.product_name, req.product_sku)}
+                                                    className="mt-1 text-[10px] bg-red-50 text-red-600 px-2 py-1 rounded border border-red-100 hover:bg-red-100 transition-colors font-bold w-max"
+                                                  >
+                                                    + Add "{req.product_name}" to Catalog
+                                                  </button>
                                                 </div>
                                             )}
                                           </div>

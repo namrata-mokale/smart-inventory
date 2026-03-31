@@ -85,38 +85,19 @@ def get_supply_requests():
         
         top_shop_id = top_shop[0] if top_shop else None
             
-        # 1. GET ALL PENDING/ACTIVE REQUESTS (Most permissive query)
-        active_statuses = ['Pending', 'Quotes Received', 'Awaiting Approval', 'Awaiting Selection', 'Awaiting Payment', 'Paid', 'Shipped', 'Delivered']
-        all_active_requests = SupplyRequest.query.filter(SupplyRequest.status.in_(active_statuses)).all()
-        
-        # 2. GET LINKED SHOP IDs
+        # 1. GET LINKED SHOP IDs
         linked_shop_ids = [s.id for s in supplier.shops]
         
-        # 3. FILTER MANUALLY FOR MAXIMUM RELIABILITY
-        final_requests = []
-        for req in all_active_requests:
-            is_match = False
-            
-            # Match if: Directly assigned
-            if req.supplier_id == supplier.id:
-                is_match = True
-            
-            # Match if: Shop is linked
-            elif req.shop_id in linked_shop_ids:
-                is_match = True
-                
-            # Match if: Unassigned (Public) AND in catalog
-            elif req.supplier_id is None:
-                p_name = req.product.name if req.product else ""
-                p_sku = req.product.sku if req.product else ""
-                if find_catalog_match(supplier.id, p_sku, p_name):
-                    is_match = True
-            
-            if is_match:
-                final_requests.append(req)
+        # 2. GET REQUESTS FROM LINKED SHOPS (Strict & Practical)
+        active_statuses = ['Pending', 'Quotes Received', 'Awaiting Approval', 'Awaiting Selection', 'Awaiting Payment', 'Paid', 'Shipped', 'Delivered']
         
-        print(f"DEBUG: Found {len(final_requests)} total requests after manual filtering")
-        requests = final_requests # Use the filtered list for the loop below
+        # Only show requests if the shop is LINKED to this supplier
+        requests = SupplyRequest.query.filter(
+            SupplyRequest.shop_id.in_(linked_shop_ids),
+            SupplyRequest.status.in_(active_statuses)
+        ).all()
+        
+        print(f"DEBUG: Found {len(requests)} total requests for linked shops: {linked_shop_ids}")
         for r in requests:
             print(f"  - Request ID: {r.id}, Shop ID: {r.shop_id}, Status: {r.status}, Supplier ID: {r.supplier_id}")
         
