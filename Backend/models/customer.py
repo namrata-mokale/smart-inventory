@@ -47,6 +47,7 @@ class MonthlyRationOrder(db.Model):
     payment_status = db.Column(db.String(20), default='pending') # 'pending', 'paid'
     delivery_status = db.Column(db.String(20), default='pending') # 'pending', 'shipped', 'delivered'
     delivery_address = db.Column(db.String(200), nullable=False)
+    birthday_discount_applied = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     items = db.relationship('MonthlyRationOrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
@@ -103,6 +104,7 @@ class Sale(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=True)
     shop_id = db.Column(db.Integer, db.ForeignKey('shops.id'), nullable=False)
     total_amount = db.Column(db.Float, nullable=False)
+    birthday_discount_applied = db.Column(db.Boolean, default=False)
     date = db.Column(db.DateTime, default=datetime.utcnow)
     
     shop = db.relationship('Shop', backref='sales', lazy=True)

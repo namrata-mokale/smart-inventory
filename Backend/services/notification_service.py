@@ -92,7 +92,7 @@ def send_birthday_wish(customer):
                         discount_percent=discount,
                         offer_code=code,
                         offer_text=f"Happy Birthday! Enjoy {discount}% OFF on your next purchase at {shop.name}.",
-                        valid_until=today + timedelta(days=7) # Valid for 1 week
+                        valid_until=today + timedelta(days=5) # Valid for 5 days as requested
                     )
                     db.session.add(offer)
                     offers_made.append(f"{shop.name}: {discount}% OFF (Code: {code})")

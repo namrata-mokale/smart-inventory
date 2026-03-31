@@ -1424,17 +1424,17 @@ const ShopDashboard = () => {
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {customers.map(customer => {
-                                    const isBirthday = customer.dob && (() => {
+                                    const isBirthdayToday = customer.dob && (() => {
                                         const today = new Date();
                                         const dob = new Date(customer.dob);
-                                        return dob.getMonth() === today.getMonth() && dob.getDate() === today.getDate();
+                                        return dob.getUTCMonth() === today.getUTCMonth() && dob.getUTCDate() === today.getUTCDate();
                                     })();
                                     return (
-                                    <tr key={customer.id} className={isBirthday ? 'bg-yellow-50' : ''}>
+                                    <tr key={customer.id} className={isBirthdayToday ? 'bg-yellow-50' : ''}>
                                         <td className="px-6 py-4 text-sm font-bold text-indigo-600">{customer.customer_id_code || '-'}</td>
                                         <td className="px-6 py-4 text-sm font-medium text-gray-900">
                                             {customer.name}
-                                            {isBirthday && <span className="ml-2 text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-bold">🎂 TODAY</span>}
+                                            {isBirthdayToday && <span className="ml-2 text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-bold shadow-sm animate-pulse border border-pink-200">🎂 TODAY</span>}
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-500">{customer.email}</td>
                                         <td className="px-6 py-4 text-sm text-gray-500">{customer.phone || '-'}</td>
@@ -1490,7 +1490,16 @@ const ShopDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium">{record.salesman}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹{Number(record.total_price || 0).toLocaleString('en-IN')}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹{Number(record.gst_amount || 0).toLocaleString('en-IN')}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">₹{Number(record.grand_total || record.total_price || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xl font-bold text-green-600">₹{Number(record.grand_total || record.total_price || 0).toLocaleString('en-IN')}</span>
+                              {record.is_birthday_sale && (
+                                <span className="bg-pink-100 text-pink-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold flex items-center shadow-sm border border-pink-200">
+                                  <span className="mr-1">🎂</span> BDAY
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           </tr>
                       ))}
                       {history.length === 0 && (

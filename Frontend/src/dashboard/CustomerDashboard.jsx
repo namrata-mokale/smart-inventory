@@ -639,7 +639,14 @@ const CustomerDashboard = () => {
                         ))}
                       </div>
                       <div className="mt-6 pt-6 border-t border-gray-100 flex justify-between items-center">
-                        <span className="font-bold text-gray-800">Total Amount</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-gray-800">Total Amount</span>
+                          {sale.is_birthday_sale && (
+                            <span className="bg-pink-100 text-pink-700 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center shadow-sm">
+                              <span className="mr-1">🎂</span> BIRTHDAY DISCOUNT
+                            </span>
+                          )}
+                        </div>
                         <span className="text-xl font-black text-indigo-600">₹{sale.total_amount.toLocaleString('en-IN')}</span>
                       </div>
                     </div>
@@ -874,8 +881,15 @@ const CustomerDashboard = () => {
                                 <span className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</span>
                               </div>
                             ))}
-                            <div className="pt-2 border-t flex justify-between font-bold text-indigo-600">
-                              <span>Total Amount</span>
+                            <div className="pt-2 border-t flex justify-between font-bold text-indigo-600 items-center">
+                              <div className="flex flex-col">
+                                <span>Total Amount</span>
+                                {order.is_birthday_sale && (
+                                  <span className="text-[9px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded-full mt-1 flex items-center w-fit">
+                                    🎂 Birthday Discount
+                                  </span>
+                                )}
+                              </div>
                               <span>₹{order.total_amount.toFixed(2)}</span>
                             </div>
                           </div>

@@ -223,16 +223,16 @@ def get_birthday_offers():
                 discount = random.choice([10, 15, 20, 25])
                 offer_code = 'BDAY-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
                 
-                new_offer = BirthdayOffer(
-                    customer_id=customer.id,
-                    shop_id=shop.id,
-                    discount_percent=discount,
-                    offer_code=offer_code,
-                    offer_text=f"Special {discount}% Birthday Discount for you at {shop.name}!",
-                    valid_until=today + timedelta(days=7) # Valid for a week
-                )
-                db.session.add(new_offer)
-            db.session.commit()
+                    new_offer = BirthdayOffer(
+                        customer_id=customer.id,
+                        shop_id=shop.id,
+                        discount_percent=discount,
+                        offer_code=offer_code,
+                        offer_text=f"Special {discount}% Birthday Discount for you at {shop.name}!",
+                        valid_until=today + timedelta(days=5) # Valid for 5 days as requested
+                    )
+                    db.session.add(new_offer)
+                db.session.commit()
             
     offers = BirthdayOffer.query.filter_by(
         customer_id=customer.id, 
@@ -307,23 +307,22 @@ def get_purchase_history():
     if not customer:
         return jsonify({"message": "Customer profile not found"}), 404
         
-    sales = Sale.query.filter_by(customer_id=customer.id).all()
+    from models import Transaction, Product, Shop
+    txs = Transaction.query.filter_by(customer_id=customer.id).order_by(Transaction.date.desc()).all()
     history = []
-    for s in sales:
-        items = []
-        for item in s.items:
-            product = Product.query.get(item.product_id)
-            items.append({
-                "product_name": product.name if product else "Unknown Product",
-                "quantity": item.quantity,
-                "price": item.price_at_sale
-            })
+    for t in txs:
+        product = Product.query.get(t.product_id)
         history.append({
-            "id": s.id,
-            "shop_name": s.shop.name if s.shop else "Unknown Shop",
-            "total_amount": s.total_amount,
-            "date": s.date.strftime('%Y-%m-%d %H:%M:%S'),
-            "items": items
+            "id": t.id,
+            "shop_name": t.shop.name if t.shop else "Unknown Shop",
+            "total_amount": t.total_amount,
+            "date": t.date.strftime('%Y-%m-%d %H:%M:%S'),
+            "is_birthday_sale": bool(t.is_birthday_sale),
+            "items": [{
+                "product_name": product.name if product else "Unknown Product",
+                "quantity": t.quantity,
+                "price": t.unit_price
+            }]
         })
     return jsonify(history), 200
 
@@ -614,23 +613,24 @@ def submit_ration():
     # Handle Birthday Discount
     applied_discount = 0
     if birthday_offer_code:
+        from datetime import date
         offer = BirthdayOffer.query.filter_by(
             offer_code=birthday_offer_code,
             customer_id=customer.id,
             shop_id=ration.shop_id,
             is_used=False
-        ).first()
+        ).filter(BirthdayOffer.valid_until >= date.today()).first()
 
         if offer and not customer.birthday_reward_used:
             # Discount applied on subtotal before GST
             applied_discount = (total_amount * offer.discount_percent) / 100.0
             total_amount -= applied_discount
-            # Re-calculate GST on discounted total proportional to original GST
-            # Or simpler: Apply discount to GST as well
+            # Apply discount to GST as well
             total_gst_amount -= (total_gst_amount * offer.discount_percent) / 100.0
             
             offer.is_used = True
             customer.birthday_reward_used = True
+            new_order.birthday_discount_applied = True # Add this field to order
             print(f"DEBUG: Applied birthday discount of {offer.discount_percent}%: -INR {applied_discount}")
         else:
             print("DEBUG: Invalid or already used birthday offer code")
@@ -645,7 +645,8 @@ def submit_ration():
         payment_method=payment_method,
         payment_status='paid' if payment_method == 'online' else 'pending',
         delivery_status='pending',
-        delivery_address=delivery_address or customer.address or "Not Provided"
+        delivery_address=delivery_address or customer.address or "Not Provided",
+        birthday_discount_applied = True if applied_discount > 0 else False
     )
     
     db.session.add(new_order)
@@ -737,6 +738,7 @@ def get_my_ration_orders():
             "payment_status": o.payment_status,
             "delivery_status": o.delivery_status,
             "items": items,
+            "is_birthday_sale": bool(getattr(o, 'birthday_discount_applied', False)),
             "date": o.created_at.strftime('%Y-%m-%d %H:%M:%S')
         })
     return jsonify(result), 200
