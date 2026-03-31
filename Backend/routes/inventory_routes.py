@@ -183,66 +183,62 @@ def record_transaction():
             db.session.add(new_batch)
 
         # 6. Discounts (Birthday / Expiry)
-        is_birthday_sale = bool(data.get('is_birthday_sale'))
-        birthday_disc_pct = float(data.get('birthday_discount_percent') or 0)
-        final_discount = 0.0
+        is_birthday_sale = False
+        birthday_disc_pct = 0.0
+        active_offer = None
+        final_discount_amount = 0.0
 
         if transaction_type == 'SALE':
-            if is_birthday_sale and birthday_disc_pct > 0:
-                final_discount = (unit_price * birthday_disc_pct) / 100.0
-                unit_price -= final_discount
-                offer_code = data.get('birthday_offer_code')
-                if offer_code:
-                    off = BirthdayOffer.query.filter_by(offer_code=offer_code).first()
-                    if off:
-                        off.is_used = True  # Only mark THIS specific offer as used (per-shop)
+            # Priority 1: Explicit offer code from frontend
+            offer_code = data.get('birthday_offer_code')
+            if offer_code:
+                active_offer = BirthdayOffer.query.filter_by(offer_code=offer_code, is_used=False).first()
+                if active_offer:
+                    is_birthday_sale = True
+                    birthday_disc_pct = float(active_offer.discount_percent)
+            
+            # Priority 2: Auto-detect if no code but birthday exists and shop has offer
+            elif customer_db_id:
+                customer_obj = Customer.query.get(customer_db_id)
+                if customer_obj and customer_obj.dob:
+                    from datetime import date
+                    today = date.today()
+                    # If it's the customer's birthday, check for an active offer for this shop
+                    if customer_obj.dob[5:10] == today.strftime('%m-%d'):
+                        # Find an active unused offer for this shop
+                        active_offer = BirthdayOffer.query.filter_by(
+                            customer_id=customer_db_id,
+                            shop_id=product.shop_id,
+                            is_used=False
+                        ).filter(BirthdayOffer.valid_until >= today).first()
+                        
+                        if active_offer:
+                            is_birthday_sale = True
+                            birthday_disc_pct = float(active_offer.discount_percent)
+
+            # Apply Birthday Discount if detected
+            if is_birthday_sale:
+                final_discount_amount = (unit_price * birthday_disc_pct) / 100.0
+                unit_price -= final_discount_amount
+                print(f"DEBUG: Applying birthday discount ({birthday_disc_pct}%) - Amount: {final_discount_amount}")
+
+            # Expiry Discount (Only if no birthday discount applied)
             elif product.expiry_date:
-                days = (product.expiry_date - datetime.now().date()).days
+                from datetime import datetime as dt
+                days = (product.expiry_date - dt.now().date()).days
                 if 0 <= days <= 7:
                     expiry_disc = unit_price * 0.2
                     unit_price -= expiry_disc
-                    final_discount = expiry_disc
+                    final_discount_amount = expiry_disc
 
         # 4. Finalize Transaction
         try:
-            # Check for birthday status - check if there's a valid unused offer for THIS specific shop
-            from datetime import datetime as dt
-            from models import BirthdayOffer
-            is_birthday_sale = False
-            final_discount = 0.0
-            active_offer = None
-            
-            if customer_db_id and salesman_obj:
-                customer_obj = Customer.query.get(customer_db_id)
-                if customer_obj and customer_obj.dob:
-                    # Check if today is birthday AND there's a valid unused offer for THIS shop
-                    try:
-                        dob_dt = dt.strptime(customer_obj.dob, '%Y-%m-%d')
-                        today_dt = dt.now()
-                        if dob_dt.month == today_dt.month and dob_dt.day == today_dt.day:
-                            # Check for unused valid offer for THIS specific shop
-                            active_offer = BirthdayOffer.query.filter_by(
-                                customer_id=customer_db_id,
-                                shop_id=salesman_obj.shop_id,
-                                is_used=False
-                            ).filter(BirthdayOffer.valid_until >= today_dt.date()).first()
-                            
-                            if active_offer:
-                                is_birthday_sale = True
-                                final_discount = float(active_offer.discount_percent)
-                                print(f"DEBUG: Applying birthday discount ({final_discount}%) for {customer_obj.name} at shop {salesman_obj.shop_id}")
-                            else:
-                                print(f"DEBUG: No valid birthday offer for customer {customer_obj.name} at shop {salesman_obj.shop_id}")
-                    except Exception as e:
-                        print(f"DEBUG: Birthday check error: {e}")
-
             # Calculate GST based on Indian GST Rules
             from services.gst_service import get_gst_rate
             gst_rate = get_gst_rate(product.name, product.category)
             
-            # Apply discount to unit price
-            discounted_unit_price = unit_price * (1 - final_discount / 100.0)
-            subtotal = discounted_unit_price * quantity
+            # unit_price is already discounted above
+            subtotal = unit_price * quantity
             gst_amount = subtotal * gst_rate
             grand_total = subtotal + gst_amount
             
@@ -262,7 +258,7 @@ def record_transaction():
                 customer_id=customer_db_id,
                 incentive_amount=float(incentive),
                 is_birthday_sale=is_birthday_sale,
-                discount_amount=float((unit_price - discounted_unit_price) * quantity),
+                discount_amount=float(final_discount_amount * quantity),
                 gst_amount=float(gst_amount),
                 total_amount=float(grand_total),
                 unit_type=unit_type,

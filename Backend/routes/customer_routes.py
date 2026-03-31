@@ -210,15 +210,17 @@ def get_birthday_offers():
         except:
             pass
 
-    # If it's birthday and no offers for today yet, generate random offers for linked shops
+    # If it's birthday, ensure offers exist for EACH linked shop
     if is_birthday:
-        # Check if we already generated offers for this birthday (last_birthday_wish can track this)
-        # Using birthday_reward_used as a primary flag for usage, but we can generate offers if not used.
-        existing_offers = BirthdayOffer.query.filter_by(customer_id=customer.id, is_used=False).filter(BirthdayOffer.valid_until >= today).all()
-        
-        if not existing_offers and not customer.birthday_reward_used:
-            # Generate random offers for each linked shop
-            for shop in customer.shops:
+        for shop in customer.shops:
+            # Check if an unused valid offer exists for THIS shop
+            existing_offer = BirthdayOffer.query.filter_by(
+                customer_id=customer.id, 
+                shop_id=shop.id,
+                is_used=False
+            ).filter(BirthdayOffer.valid_until >= today).first()
+            
+            if not existing_offer:
                 # Random discount between 10% and 25%
                 discount = random.choice([10, 15, 20, 25])
                 offer_code = 'BDAY-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -232,7 +234,7 @@ def get_birthday_offers():
                     valid_until=today + timedelta(days=5) # Valid for 5 days as requested
                 )
                 db.session.add(new_offer)
-            db.session.commit()
+        db.session.commit()
             
     offers = BirthdayOffer.query.filter_by(
         customer_id=customer.id, 
@@ -275,6 +277,7 @@ def search_customer_by_phone():
         
     birthday_discount = 0
     offer_code = None
+    is_birthday_offer_active = False # New flag to return
     if shop_id:
         # Find active unused offer for this shop (valid within 5 days of birthday)
         offer = BirthdayOffer.query.filter_by(
@@ -287,7 +290,7 @@ def search_customer_by_phone():
             # We only show the discount if the offer is active and unused
             birthday_discount = offer.discount_percent
             offer_code = offer.offer_code
-            is_birthday = True # Treat as birthday period if offer is active
+            is_birthday_offer_active = True
             
     return jsonify({
         "id": customer.id,
@@ -296,7 +299,7 @@ def search_customer_by_phone():
         "phone": customer.phone,
         "address": customer.address,
         "dob": customer.dob,
-        "is_birthday": is_birthday,
+        "is_birthday": is_birthday_offer_active, # Only return true if offer is active and UNUSED
         "birthday_discount": birthday_discount,
         "offer_code": offer_code
     }), 200
