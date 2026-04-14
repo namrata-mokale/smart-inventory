@@ -80,11 +80,20 @@ def delete_customer(cid):
         return jsonify({"message": "Customer not found"}), 404
     
     # Delete any birthday offers linked to this customer first to avoid constraint errors
-    from models import BirthdayOffer, MonthlyRation, MonthlyRationOrder, Sale, Transaction
+    from models import BirthdayOffer, MonthlyRation, MonthlyRationOrder, Sale, Transaction, MonthlyRationItem, MonthlyRationOrderItem
     BirthdayOffer.query.filter_by(customer_id=cid).delete()
     
-    # Delete related ration orders to avoid constraints
+    # Delete related ration items first to avoid foreign key constraints
+    rations = MonthlyRation.query.filter_by(customer_id=cid).all()
+    ration_ids = [r.id for r in rations]
+    if ration_ids:
+        MonthlyRationItem.query.filter(MonthlyRationItem.ration_id.in_(ration_ids)).delete(synchronize_session=False)
     MonthlyRation.query.filter_by(customer_id=cid).delete()
+    
+    orders = MonthlyRationOrder.query.filter_by(customer_id=cid).all()
+    order_ids = [o.id for o in orders]
+    if order_ids:
+        MonthlyRationOrderItem.query.filter(MonthlyRationOrderItem.order_id.in_(order_ids)).delete(synchronize_session=False)
     MonthlyRationOrder.query.filter_by(customer_id=cid).delete()
     
     # Nullify customer_id in sales and transactions instead of deleting the financial records
