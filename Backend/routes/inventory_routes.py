@@ -203,9 +203,24 @@ def record_transaction():
                 if customer_obj and customer_obj.dob:
                     from datetime import date
                     today = date.today()
-                    # If it's the customer's birthday, check for an active offer for this shop
-                    if customer_obj.dob[5:10] == today.strftime('%m-%d'):
-                        # Find an active unused offer for this shop
+                    # Check birthday MATCH using robust parsing
+                    import re
+                    patterns = [
+                        (r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', 2, 3),  # YYYY-MM-DD
+                        (r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})', 1, 2),  # DD-MM-YYYY
+                        (r'(\d{1,2})[-/](\d{1,2})', 1, 2),             # MM-DD
+                    ]
+                    dob_match = False
+                    for pattern, m_group, d_group in patterns:
+                        match = re.search(pattern, customer_obj.dob)
+                        if match:
+                            m, d = match.group(m_group), match.group(d_group)
+                            if f"{int(m):02d}-{int(d):02d}" == today.strftime('%m-%d'):
+                                dob_match = True
+                                break
+                    
+                    if dob_match:
+                        # Find an active unused offer for THIS shop
                         active_offer = BirthdayOffer.query.filter_by(
                             customer_id=customer_db_id,
                             shop_id=product.shop_id,

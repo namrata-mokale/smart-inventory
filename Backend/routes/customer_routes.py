@@ -189,20 +189,44 @@ def get_birthday_offers():
         return jsonify([])
         
     today = date.today()
+    
+    # 1. Ensure customer is linked to their shop profiles (if they were added by shop owners before registering)
+    # Check for any unlinked customer records with the same phone number
+    if customer.phone:
+        unlinked_records = Customer.query.filter(
+            Customer.phone == customer.phone,
+            Customer.user_id == None,
+            Customer.id != customer.id
+        ).all()
+        
+        for record in unlinked_records:
+            print(f"DEBUG: Found unlinked record {record.customer_id_code} for phone {customer.phone}. Linking shops...")
+            # Copy shops from unlinked record to current customer
+            for shop in record.shops:
+                if shop not in customer.shops:
+                    customer.shops.append(shop)
+            # We could also delete the unlinked record or just leave it
+            # For now, just mark it with a dummy user_id to avoid repeated linking
+            record.user_id = -1 
+            db.session.add(record)
+        
+        if unlinked_records:
+            db.session.add(customer)
+            db.session.commit()
+            print(f"DEBUG: Automatic linking complete for {customer.name}")
+
     print(f"DEBUG: Checking birthday offers for {customer.name} (DOB: {customer.dob}, Today: {today})")
     
-    # Check if today is birthday
+    # 2. Check if today is birthday
     is_birthday = False
     dob_month_day = None
     if customer.dob:
         try:
-            # Robust parsing for MM-DD using regex
             import re
-            # Try different patterns to extract MM-DD
             patterns = [
-                (r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', 2, 3),  # YYYY-MM-DD -> groups 2,3
-                (r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})', 1, 2),  # DD-MM-YYYY -> groups 1,2
-                (r'(\d{1,2})[-/](\d{1,2})', 1, 2),             # MM-DD -> groups 1,2
+                (r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', 2, 3),  # YYYY-MM-DD
+                (r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})', 1, 2),  # DD-MM-YYYY
+                (r'(\d{1,2})[-/](\d{1,2})', 1, 2),             # MM-DD
             ]
             
             for pattern, m_group, d_group in patterns:
@@ -217,8 +241,8 @@ def get_birthday_offers():
                 print(f"DEBUG: Birthday MATCH! {dob_month_day}")
         except Exception as e:
             print(f"DEBUG: DOB Parsing error: {e}")
-    
-    # If it's birthday period, ensure offers exist for EACH linked shop
+
+    # 3. Generate offers for birthday period
     if is_birthday:
         print(f"DEBUG: Generating offers for {len(customer.shops)} shops")
         for shop in customer.shops:
@@ -244,13 +268,13 @@ def get_birthday_offers():
                 print(f"DEBUG: Generated {discount}% offer for {shop.name}")
         db.session.commit()
             
-    # Return ALL unused offers (valid ones only)
+    # 4. Return ONLY unused and valid offers
     offers = BirthdayOffer.query.filter_by(
         customer_id=customer.id, 
         is_used=False
     ).filter(BirthdayOffer.valid_until >= today).all()
     
-    print(f"DEBUG: Returning {len(offers)} active offers")
+    print(f"DEBUG: Returning {len(offers)} active offers for {customer.name}")
     return jsonify([{
         "id": o.id,
         "shop_id": o.shop_id,
