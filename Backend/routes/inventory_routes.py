@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Product, Shop, Transaction, SupplyRequest, Supplier, SupplierBill, SupplierCatalog, ExpiredProduct, SupplierQuote, User, Salesman, ProductUnitOption
+from models import db, Product, Shop, Transaction, SupplyRequest, Supplier, SupplierBill, SupplierCatalog, ExpiredProduct, SupplierQuote, User, Salesman, ProductUnitOption, BirthdayOffer
 from services.notification_service import send_email, send_sms
 from services.matching_service import find_catalog_match
 from flask_jwt_extended import jwt_required, get_jwt_identity

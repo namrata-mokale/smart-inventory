@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, Customer, Shop, Product, Sale, Salesman, MonthlyRation, MonthlyRationItem, MonthlyRationOrder, MonthlyRationOrderItem
+from models import db, Customer, Shop, Product, Sale, Salesman, MonthlyRation, MonthlyRationItem, MonthlyRationOrder, MonthlyRationOrderItem, BirthdayOffer
 from services.notification_service import send_email
 
 customer_bp = Blueprint('customer', __name__)
@@ -502,7 +502,6 @@ def search_customer_by_phone():
     from datetime import date, timedelta
     import random
     import string
-    from models import BirthdayOffer
     today = date.today()
     
     is_birthday_today, is_within_birthday_window = check_birthday_window(customer.dob)
