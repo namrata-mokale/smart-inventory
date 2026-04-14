@@ -229,10 +229,10 @@ def record_transaction():
                             if dob_month == today.month and dob_day == today.day:
                                 dob_match = True
                             else:
-                                # Check if within 5-day window after birthday
+                                # Check if within 5-day window + 1-day buffer for timezones
                                 birthdate_this_year = date(today.year, dob_month, dob_day)
                                 days_diff = (today - birthdate_this_year).days
-                                if 0 <= days_diff <= 5:
+                                if -1 <= days_diff <= 5:
                                     dob_match = True
                         except:
                             pass

@@ -57,30 +57,74 @@ def send_birthday_wish(customer):
     
     # Robust DOB parsing to check if today is birthday
     is_birthday = False
+    is_in_window = False
     try:
+        # Month name to number mapping
+        month_map = {
+            'january': 1, 'jan': 1,
+            'february': 2, 'feb': 2,
+            'march': 3, 'mar': 3,
+            'april': 4, 'apr': 4,
+            'may': 5,
+            'june': 6, 'jun': 6,
+            'july': 7, 'jul': 7,
+            'august': 8, 'aug': 8,
+            'september': 9, 'sep': 9, 'sept': 9,
+            'october': 10, 'oct': 10,
+            'november': 11, 'nov': 11,
+            'december': 12, 'dec': 12
+        }
+        
+        dob_str = str(customer.dob).strip().lower()
+        dob_month = None
+        dob_day = None
+        
         patterns = [
-            (r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', 2, 3),  # YYYY-MM-DD -> groups 2,3
-            (r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})', 1, 2),  # DD-MM-YYYY -> groups 1,2
-            (r'(\d{1,2})[-/](\d{1,2})', 1, 2),             # MM-DD -> groups 1,2
+            (r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', 2, 3),  # YYYY-MM-DD
+            (r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})', 1, 2),  # DD-MM-YYYY
+            (r'(\d{1,2})[-/](\d{1,2})', 1, 2),             # MM-DD
+            (r'(\d{1,2})\s+([a-z]+)\s+(\d{4})', 1, 2),   # DD Month YYYY
+            (r'([a-z]+)\s+(\d{1,2}),?\s+(\d{4})', 2, 1),  # Month DD, YYYY
         ]
         
-        dob_month_day = None
         for pattern, m_group, d_group in patterns:
-            match = re.search(pattern, customer.dob)
+            match = re.search(pattern, dob_str)
             if match:
-                m, d = match.group(m_group), match.group(d_group)
-                dob_month_day = f"{int(m):02d}-{int(d):02d}"
+                m_val = match.group(m_group)
+                d_val = match.group(d_group)
+                
+                if m_val.isalpha():
+                    m_val = m_val[:3].lower()
+                    if m_val in month_map:
+                        dob_month = month_map[m_val]
+                    else:
+                        continue
+                else:
+                    dob_month = int(m_val)
+                
+                dob_day = int(d_val)
                 break
         
-        if dob_month_day and dob_month_day == today.strftime('%m-%d'):
-            is_birthday = True
-            print(f"DEBUG: Birthday MATCH for {customer.email}! DOB: {dob_month_day}, Today: {today.strftime('%m-%d')}")
+        if dob_month and dob_day:
+            # Check if today is birthday
+            if dob_month == today.month and dob_day == today.day:
+                is_birthday = True
+                is_in_window = True
+                print(f"DEBUG: Birthday MATCH for {customer.email}! Today: {today.strftime('%m-%d')}")
+            else:
+                # Check 5-day window + 1-day buffer for timezones
+                birthdate_this_year = date(today.year, dob_month, dob_day)
+                days_diff = (today - birthdate_this_year).days
+                # Active if birthday was in the last 5 days, OR if it's tomorrow (to account for timezone differences)
+                if -1 <= days_diff <= 5:
+                    is_in_window = True
+                    print(f"DEBUG: Within birthday window for {customer.email}! (Days diff: {days_diff})")
     except Exception as e:
         print(f"DEBUG: DOB parsing error in send_birthday_wish: {e}")
         return False
     
-    if not is_birthday:
-        print(f"DEBUG: Not birthday for {customer.email}")
+    if not is_in_window:
+        print(f"DEBUG: Not in birthday window for {customer.email}")
         return False
     
     # Check if we already sent a wish today

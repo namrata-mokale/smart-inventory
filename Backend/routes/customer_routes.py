@@ -81,11 +81,12 @@ def check_birthday_window(dob):
         # Check if birthday month-day matches today
         is_today = (dob_month == today.month and dob_day == today.day)
         
-        # Check 5-day window
+        # Check 5-day window + 1-day buffer for timezones
         birthdate_this_year = date(today.year, dob_month, dob_day)
         days_diff = (today - birthdate_this_year).days
-        # If birthday was in the last 5 days (including today)
-        is_in_window = (0 <= days_diff <= 5)
+        # Active if birthday is today, or was in the last 5 days, 
+        # OR if it's tomorrow (to account for timezone differences)
+        is_in_window = (-1 <= days_diff <= 5)
         
         return is_today, is_in_window
     except:
