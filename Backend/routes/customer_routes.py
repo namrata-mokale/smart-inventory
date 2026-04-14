@@ -211,17 +211,16 @@ def get_birthday_offers():
             pass
 
     # If it's birthday, ensure offers exist for EACH linked shop
+    # Only generate offers ONCE per birthday - check if any offers exist for this birthday period
     if is_birthday:
-        for shop in customer.shops:
-            # Check if an unused valid offer exists for THIS shop
-            existing_offer = BirthdayOffer.query.filter_by(
-                customer_id=customer.id, 
-                shop_id=shop.id,
-                is_used=False
-            ).filter(BirthdayOffer.valid_until >= today).first()
-            
-            if not existing_offer:
-                # Random discount between 10% and 25%
+        # Check if any offers were already generated for this birthday (valid_until includes today)
+        existing_any_offer = BirthdayOffer.query.filter_by(
+            customer_id=customer.id
+        ).filter(BirthdayOffer.valid_until >= today).first()
+        
+        if not existing_any_offer:
+            # First time generating for this birthday - create for all shops
+            for shop in customer.shops:
                 discount = random.choice([10, 15, 20, 25])
                 offer_code = 'BDAY-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
                 
@@ -231,11 +230,15 @@ def get_birthday_offers():
                     discount_percent=discount,
                     offer_code=offer_code,
                     offer_text=f"Special {discount}% Birthday Discount for you at {shop.name}!",
-                    valid_until=today + timedelta(days=5) # Valid for 5 days as requested
+                    valid_until=today + timedelta(days=5) # Valid for 5 days
                 )
                 db.session.add(new_offer)
-        db.session.commit()
+            db.session.commit()
+        else:
+            # Offers already generated for this birthday - don't regenerate
+            print(f"DEBUG: Birthday offers already exist for customer {customer.id} this period")
             
+    # Return ALL unused offers (valid ones only)
     offers = BirthdayOffer.query.filter_by(
         customer_id=customer.id, 
         is_used=False
@@ -603,23 +606,26 @@ def submit_ration():
     if birthday_offer_code:
         from datetime import date
         offer = BirthdayOffer.query.filter_by(
-            offer_code=birthday_offer_code,
-            customer_id=customer.id,
-            shop_id=ration.shop_id,
-            is_used=False
-        ).filter(BirthdayOffer.valid_until >= date.today()).first()
+            offer_code=birthday_offer_code
+        ).filter(
+            BirthdayOffer.customer_id==customer.id,
+            BirthdayOffer.shop_id==ration.shop_id,
+            BirthdayOffer.is_used==False,
+            BirthdayOffer.valid_until >= date.today()
+        ).first()
 
-        if offer and not offer.is_used:
-            # Discount applied on subtotal before GST
-            applied_discount = (total_amount * offer.discount_percent) / 100.0
-            total_amount -= applied_discount
-            # Apply discount to GST as well
-            total_gst_amount -= (total_gst_amount * offer.discount_percent) / 100.0
-            
-            offer.is_used = True  # Only mark THIS specific offer as used (per-shop)
-            print(f"DEBUG: Applied birthday discount of {offer.discount_percent}%: -INR {applied_discount}")
+        if offer:
+            # Double-check it's for the correct shop
+            if offer.shop_id != ration.shop_id:
+                print("DEBUG: Offer is for different shop, not applying")
+            else:
+                applied_discount = (total_amount * offer.discount_percent) / 100.0
+                total_amount -= applied_discount
+                total_gst_amount -= (total_gst_amount * offer.discount_percent) / 100.0
+                offer.is_used = True
+                print(f"DEBUG: Applied birthday discount of {offer.discount_percent}%: -INR {applied_discount}")
         else:
-            print("DEBUG: Invalid or already used birthday offer code")
+            print("DEBUG: No valid birthday offer found for this code - may already be used or expired")
 
     grand_total = total_amount + total_gst_amount
 
