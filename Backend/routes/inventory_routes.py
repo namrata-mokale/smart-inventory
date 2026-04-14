@@ -205,35 +205,37 @@ def record_transaction():
                     today = date.today()
                     # Check birthday MATCH using robust parsing (5-day window)
                     import re
+                    dob_str = str(customer_obj.dob).strip().lower()
+                    dob_month = None
+                    dob_day = None
+                    
                     patterns = [
                         (r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', 2, 3),  # YYYY-MM-DD
                         (r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})', 1, 2),  # DD-MM-YYYY
                         (r'(\d{1,2})[-/](\d{1,2})', 1, 2),             # MM-DD
                     ]
-                    dob_match = False
-                    dob_month_day = None
+                    
                     for pattern, m_group, d_group in patterns:
-                        match = re.search(pattern, customer_obj.dob)
+                        match = re.search(pattern, dob_str)
                         if match:
-                            m, d = match.group(m_group), match.group(d_group)
-                            dob_month_day = f"{int(m):02d}-{int(d):02d}"
+                            dob_month = int(match.group(m_group))
+                            dob_day = int(match.group(d_group))
                             break
                     
-                    if dob_month_day:
-                        today_md = today.strftime('%m-%d')
-                        if dob_month_day == today_md:
-                            dob_match = True
-                        else:
-                            # Check if within 5-day window after birthday
-                            try:
-                                dob_parts = dob_month_day.split('-')
-                                dob_month, dob_day = int(dob_parts[0]), int(dob_parts[1])
+                    dob_match = False
+                    if dob_month is not None and dob_day is not None:
+                        try:
+                            # Check if birthday month-day matches today
+                            if dob_month == today.month and dob_day == today.day:
+                                dob_match = True
+                            else:
+                                # Check if within 5-day window after birthday
                                 birthdate_this_year = date(today.year, dob_month, dob_day)
                                 days_diff = (today - birthdate_this_year).days
                                 if 0 <= days_diff <= 5:
                                     dob_match = True
-                            except:
-                                pass
+                        except:
+                            pass
                     
                     if dob_match:
                         # Find an active unused offer for THIS shop
