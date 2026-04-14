@@ -67,6 +67,24 @@ def debug_birthday_status():
     result["dob_parsed"] = dob_month_day
     result["is_birthday_today"] = is_birthday_today
     
+    # Check if within 5-day birthday window
+    is_within_birthday_window = False
+    if dob_month_day:
+        today_md = today.strftime('%m-%d')
+        if dob_month_day == today_md:
+            is_within_birthday_window = True
+        else:
+            try:
+                dob_parts = dob_month_day.split('-')
+                dob_month, dob_day = int(dob_parts[0]), int(dob_parts[1])
+                birthdate_this_year = date(today.year, dob_month, dob_day)
+                days_diff = (today - birthdate_this_year).days
+                if 0 <= days_diff <= 5:
+                    is_within_birthday_window = True
+            except:
+                pass
+    result["is_within_birthday_window"] = is_within_birthday_window
+    
     # Check all offers
     all_offers = BirthdayOffer.query.filter_by(customer_id=customer.id).all()
     result["total_offers_in_db"] = len(all_offers)
@@ -81,8 +99,8 @@ def debug_birthday_status():
         "is_valid_and_unused": o.valid_until >= today and not o.is_used
     } for o in all_offers]
     
-    # If birthday today, generate missing offers
-    if is_birthday_today:
+    # If birthday today or within 5-day window, generate missing offers
+    if is_birthday_today or is_within_birthday_window:
         for shop in customer.shops:
             shop_offer = BirthdayOffer.query.filter_by(
                 customer_id=customer.id,
@@ -317,8 +335,8 @@ def get_birthday_offers():
 
     print(f"DEBUG: Checking birthday offers for {customer.name} (DOB: {customer.dob}, Today: {today})")
     
-    # 2. Check if today is birthday
-    is_birthday = False
+    # 2. Check if today is birthday OR within 5-day window
+    is_within_birthday_window = False
     dob_month_day = None
     if customer.dob:
         try:
@@ -336,14 +354,28 @@ def get_birthday_offers():
                     dob_month_day = f"{int(m):02d}-{int(d):02d}"
                     break
             
-            if dob_month_day and dob_month_day == today.strftime('%m-%d'):
-                is_birthday = True
-                print(f"DEBUG: Birthday MATCH! {dob_month_day}")
+            if dob_month_day:
+                today_md = today.strftime('%m-%d')
+                if dob_month_day == today_md:
+                    is_within_birthday_window = True
+                    print(f"DEBUG: Birthday MATCH! {dob_month_day}")
+                else:
+                    # Check if we're within the 5-day window after birthday
+                    try:
+                        dob_parts = dob_month_day.split('-')
+                        dob_month, dob_day = int(dob_parts[0]), int(dob_parts[1])
+                        birthdate_this_year = date(today.year, dob_month, dob_day)
+                        days_diff = (today - birthdate_this_year).days
+                        if 0 <= days_diff <= 5:
+                            is_within_birthday_window = True
+                            print(f"DEBUG: Within 5-day birthday window! Days since birthday: {days_diff}")
+                    except:
+                        pass
         except Exception as e:
             print(f"DEBUG: DOB Parsing error: {e}")
 
-    # 3. Generate offers for birthday period
-    if is_birthday:
+    # 3. Generate offers for birthday window (5 days)
+    if is_within_birthday_window:
         print(f"DEBUG: Generating offers for {len(customer.shops)} shops")
         for shop in customer.shops:
             # Check if ANY offer (used or unused) exists for this shop for this birthday period
@@ -406,8 +438,8 @@ def search_customer_by_phone():
     from models import BirthdayOffer
     today = date.today()
     
-    # Robust birthday check
-    is_birthday_today = False
+    # Robust birthday check - check if today is within 5 days of birthday
+    is_within_birthday_window = False
     if customer.dob:
         try:
             import re
@@ -416,18 +448,36 @@ def search_customer_by_phone():
                 (r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})', 1, 2),  # DD-MM-YYYY
                 (r'(\d{1,2})[-/](\d{1,2})', 1, 2),             # MM-DD
             ]
+            dob_month_day = None
             for pattern, m_group, d_group in patterns:
                 match = re.search(pattern, customer.dob)
                 if match:
                     m, d = match.group(m_group), match.group(d_group)
-                    if f"{int(m):02d}-{int(d):02d}" == today.strftime('%m-%d'):
-                        is_birthday_today = True
-                        break
+                    dob_month_day = f"{int(m):02d}-{int(d):02d}"
+                    break
+            
+            if dob_month_day:
+                today_md = today.strftime('%m-%d')
+                # Check if birthday month-day matches OR is within 5 days (for 5-day window)
+                if dob_month_day == today_md:
+                    is_within_birthday_window = True
+                else:
+                    # Check if we're within the 5-day window after birthday
+                    try:
+                        dob_parts = dob_month_day.split('-')
+                        dob_month, dob_day = int(dob_parts[0]), int(dob_parts[1])
+                        birthdate_this_year = date(today.year, dob_month, dob_day)
+                        days_diff = (today - birthdate_this_year).days
+                        # If birthday was in the last 5 days (including today)
+                        if 0 <= days_diff <= 5:
+                            is_within_birthday_window = True
+                    except:
+                        pass
         except Exception as e:
             print(f"DEBUG: Search DOB Parsing error: {e}")
 
-    # Generate offers on the fly if it's birthday and shop doesn't have one yet
-    if is_birthday_today and shop_id:
+    # Generate offers on the fly if within birthday window and shop doesn't have one yet
+    if is_within_birthday_window and shop_id:
         existing_offer = BirthdayOffer.query.filter_by(
             customer_id=customer.id, 
             shop_id=shop_id
@@ -453,7 +503,7 @@ def search_customer_by_phone():
     offer_code = None
     is_birthday_offer_active = False 
     if shop_id:
-        # Find active unused offer for this shop
+        # Find active unused offer for this shop (within validity window)
         offer = BirthdayOffer.query.filter_by(
             customer_id=customer.id, 
             shop_id=shop_id,

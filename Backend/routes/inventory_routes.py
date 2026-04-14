@@ -197,13 +197,13 @@ def record_transaction():
                     is_birthday_sale = True
                     birthday_disc_pct = float(active_offer.discount_percent)
             
-            # Priority 2: Auto-detect if no code but birthday exists and shop has offer
+            # Priority 2: Auto-detect if no code but birthday exists and shop has offer (within 5-day window)
             elif customer_db_id:
                 customer_obj = Customer.query.get(customer_db_id)
                 if customer_obj and customer_obj.dob:
                     from datetime import date
                     today = date.today()
-                    # Check birthday MATCH using robust parsing
+                    # Check birthday MATCH using robust parsing (5-day window)
                     import re
                     patterns = [
                         (r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', 2, 3),  # YYYY-MM-DD
@@ -211,13 +211,29 @@ def record_transaction():
                         (r'(\d{1,2})[-/](\d{1,2})', 1, 2),             # MM-DD
                     ]
                     dob_match = False
+                    dob_month_day = None
                     for pattern, m_group, d_group in patterns:
                         match = re.search(pattern, customer_obj.dob)
                         if match:
                             m, d = match.group(m_group), match.group(d_group)
-                            if f"{int(m):02d}-{int(d):02d}" == today.strftime('%m-%d'):
-                                dob_match = True
-                                break
+                            dob_month_day = f"{int(m):02d}-{int(d):02d}"
+                            break
+                    
+                    if dob_month_day:
+                        today_md = today.strftime('%m-%d')
+                        if dob_month_day == today_md:
+                            dob_match = True
+                        else:
+                            # Check if within 5-day window after birthday
+                            try:
+                                dob_parts = dob_month_day.split('-')
+                                dob_month, dob_day = int(dob_parts[0]), int(dob_parts[1])
+                                birthdate_this_year = date(today.year, dob_month, dob_day)
+                                days_diff = (today - birthdate_this_year).days
+                                if 0 <= days_diff <= 5:
+                                    dob_match = True
+                            except:
+                                pass
                     
                     if dob_match:
                         # Find an active unused offer for THIS shop
