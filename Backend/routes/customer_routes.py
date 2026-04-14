@@ -17,6 +17,106 @@ def get_shop_id_for_user(current_user):
         return current_user.get('shop_id')
     return None
 
+@customer_bp.route('/debug/birthday-status', methods=['GET'])
+def debug_birthday_status():
+    """Debug endpoint to check birthday status for a phone number"""
+    phone = request.args.get('phone')
+    if not phone:
+        return jsonify({"error": "phone required"}), 400
+    
+    from datetime import date, timedelta
+    from models import BirthdayOffer
+    import re
+    import random
+    import string
+    
+    today = date.today()
+    customer = Customer.query.filter_by(phone=phone).first()
+    
+    if not customer:
+        return jsonify({"error": "Customer not found", "phone": phone}), 404
+    
+    result = {
+        "customer_id": customer.id,
+        "customer_name": customer.name,
+        "customer_dob": customer.dob,
+        "today": str(today),
+        "shops_linked": [s.name for s in customer.shops],
+        "shop_ids": [s.id for s in customer.shops],
+    }
+    
+    # Robust birthday check
+    is_birthday_today = False
+    dob_month_day = None
+    if customer.dob:
+        patterns = [
+            (r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', 2, 3),
+            (r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})', 1, 2),
+            (r'(\d{1,2})[-/](\d{1,2})', 1, 2),
+        ]
+        for pattern, m_group, d_group in patterns:
+            match = re.search(pattern, customer.dob)
+            if match:
+                m, d = match.group(m_group), match.group(d_group)
+                dob_month_day = f"{int(m):02d}-{int(d):02d}"
+                break
+        
+        if dob_month_day == today.strftime('%m-%d'):
+            is_birthday_today = True
+    
+    result["dob_parsed"] = dob_month_day
+    result["is_birthday_today"] = is_birthday_today
+    
+    # Check all offers
+    all_offers = BirthdayOffer.query.filter_by(customer_id=customer.id).all()
+    result["total_offers_in_db"] = len(all_offers)
+    result["offers"] = [{
+        "id": o.id,
+        "shop_id": o.shop_id,
+        "discount": o.discount_percent,
+        "offer_code": o.offer_code,
+        "is_used": o.is_used,
+        "valid_until": str(o.valid_until),
+        "is_valid": o.valid_until >= today,
+        "is_valid_and_unused": o.valid_until >= today and not o.is_used
+    } for o in all_offers]
+    
+    # If birthday today, generate missing offers
+    if is_birthday_today:
+        for shop in customer.shops:
+            shop_offer = BirthdayOffer.query.filter_by(
+                customer_id=customer.id,
+                shop_id=shop.id
+            ).filter(BirthdayOffer.valid_until >= today).first()
+            
+            if not shop_offer:
+                discount = random.choice([10, 15, 20, 25])
+                offer_code = 'BDAY-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                new_offer = BirthdayOffer(
+                    customer_id=customer.id,
+                    shop_id=shop.id,
+                    discount_percent=discount,
+                    offer_code=offer_code,
+                    offer_text=f"Special {discount}% Birthday Discount for you at {shop.name}!",
+                    valid_until=today + timedelta(days=5)
+                )
+                db.session.add(new_offer)
+                result["generated_for_shop"] = shop.name
+        
+        if customer.shops:
+            db.session.commit()
+    
+    # Return active unused offers
+    active_offers = BirthdayOffer.query.filter_by(
+        customer_id=customer.id, 
+        is_used=False
+    ).filter(BirthdayOffer.valid_until >= today).all()
+    
+    result["active_unused_offers"] = len(active_offers)
+    result["active_unused_offer_codes"] = [o.offer_code for o in active_offers]
+    
+    return jsonify(result), 200
+
 @customer_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_customers():
