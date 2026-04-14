@@ -342,6 +342,65 @@ def link_to_shop():
         customer.shops.append(shop)
         db.session.commit()
         print(f"DEBUG: Successfully linked to {shop.name}")
+        
+        # Generate birthday offers when newly linking to a shop if within birthday window
+        from datetime import date, timedelta
+        today = date.today()
+        if customer.dob:
+            try:
+                import re
+                patterns = [
+                    (r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', 2, 3),
+                    (r'(\d{1,2})[-/](\d{1,2})[-/](\d{4})', 1, 2),
+                    (r'(\d{1,2})[-/](\d{1,2})', 1, 2),
+                ]
+                dob_month_day = None
+                for pattern, m_group, d_group in patterns:
+                    match = re.search(pattern, customer.dob)
+                    if match:
+                        m, d = match.group(m_group), match.group(d_group)
+                        dob_month_day = f"{int(m):02d}-{int(d):02d}"
+                        break
+                
+                if dob_month_day:
+                    today_md = today.strftime('%m-%d')
+                    is_birthday_today = dob_month_day == today_md
+                    is_within_window = False
+                    
+                    if not is_birthday_today:
+                        try:
+                            dob_parts = dob_month_day.split('-')
+                            dob_month, dob_day = int(dob_parts[0]), int(dob_parts[1])
+                            birthdate_this_year = date(today.year, dob_month, dob_day)
+                            days_diff = (today - birthdate_this_year).days
+                            if 0 <= days_diff <= 5:
+                                is_within_window = True
+                        except:
+                            pass
+                    
+                    if is_birthday_today or is_within_window:
+                        # Generate offer for this newly linked shop
+                        existing_offer = BirthdayOffer.query.filter_by(
+                            customer_id=customer.id, 
+                            shop_id=shop.id
+                        ).filter(BirthdayOffer.valid_until >= today).first()
+                        
+                        if not existing_offer:
+                            discount = random.choice([10, 15, 20, 25])
+                            offer_code = 'BDAY-' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                            new_offer = BirthdayOffer(
+                                customer_id=customer.id,
+                                shop_id=shop.id,
+                                discount_percent=discount,
+                                offer_code=offer_code,
+                                offer_text=f"Special {discount}% Birthday Discount for you at {shop.name}!",
+                                valid_until=today + timedelta(days=5)
+                            )
+                            db.session.add(new_offer)
+                            db.session.commit()
+                            print(f"DEBUG: Generated birthday offer for {customer.name} at newly linked shop {shop.name}")
+            except Exception as e:
+                print(f"DEBUG: Error generating birthday offers on link_shop: {e}")
     else:
         print(f"DEBUG: Customer already linked to {shop.name}")
     
@@ -438,10 +497,11 @@ def get_birthday_offers():
     if is_within_birthday_window:
         print(f"DEBUG: Generating offers for {len(customer.shops)} shops")
         for shop in customer.shops:
-            # Check if ANY offer (used or unused) exists for this shop for this birthday period
+            # Check if UNUSED and VALID offer exists for this shop
             existing_offer = BirthdayOffer.query.filter_by(
                 customer_id=customer.id, 
-                shop_id=shop.id
+                shop_id=shop.id,
+                is_used=False
             ).filter(BirthdayOffer.valid_until >= today).first()
             
             if not existing_offer:
