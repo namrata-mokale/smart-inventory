@@ -1320,6 +1320,7 @@ const ShopDashboard = () => {
                                   <option>High-Value Items</option>
                               </select>
                           </div>
+                          {/* Global price fields removed as per user request to rely on variations */}
                           {/* UNIT VARIATIONS SECTION */}
                           <div className="col-span-2 border-t pt-6 mt-4">
                               <div className="flex justify-between items-center mb-4">
@@ -2906,24 +2907,6 @@ const ShopDashboard = () => {
                     className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     value={editForm.sku} 
                     onChange={e => setEditForm({...editForm, sku: e.target.value})} 
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1 uppercase text-[10px] tracking-wider">Selling Price (₹)</label>
-                  <input 
-                    type="number" step="0.01" required 
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    value={editForm.selling_price} 
-                    onChange={e => setEditForm({...editForm, selling_price: e.target.value})} 
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1 uppercase text-[10px] tracking-wider">Cost Price (₹)</label>
-                  <input 
-                    type="number" step="0.01" required 
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    value={editForm.cost_price} 
-                    onChange={e => setEditForm({...editForm, cost_price: e.target.value})} 
                   />
                 </div>
                 <div>

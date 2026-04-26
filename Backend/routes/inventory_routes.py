@@ -1494,10 +1494,6 @@ def edit_product(product_id):
         product.category = data['category']
     if 'sku' in data:
         product.sku = data['sku']
-    if 'selling_price' in data:
-        product.selling_price = float(data['selling_price'])
-    if 'cost_price' in data:
-        product.cost_price = float(data['cost_price'])
     if 'min_level' in data:
         product.min_level = int(data['min_level'])
     if 'reorder_level' in data:
@@ -1510,8 +1506,16 @@ def edit_product(product_id):
         except ValueError:
             pass # Keep old date if format is wrong
 
-    # Update unit variations (unit_options) if provided
-    if 'unit_options' in data:
+    if 'unit_options' in data and data['unit_options']:
+        # Sync global prices with the first variation for model compatibility (nullable=False constraint)
+        first_opt = data['unit_options'][0]
+        if 'selling_price' in first_opt and first_opt['selling_price']:
+            product.selling_price = float(first_opt['selling_price'])
+        if 'cost_price' in first_opt and first_opt['cost_price']:
+            product.cost_price = float(first_opt['cost_price'])
+        elif 'selling_price' in first_opt and first_opt['selling_price']:
+            product.cost_price = float(first_opt['selling_price']) * 0.7 # Fallback estimate
+
         for opt_data in data['unit_options']:
             if 'id' in opt_data:
                 # Update existing variation
