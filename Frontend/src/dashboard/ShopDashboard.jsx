@@ -1528,7 +1528,7 @@ const ShopDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">
                             ₹{Number(record.gst_amount || 0).toLocaleString('en-IN')}
                             <span className="text-[10px] ml-1">
-                              ({record.gst_rate !== undefined ? (record.gst_rate * 100).toFixed(0) : (getGstRate(record.product_name, record.category) * 100).toFixed(0)}%)
+                              ({record.total_price > 0 ? ((record.gst_amount / record.total_price) * 100).toFixed(0) : (record.gst_rate !== undefined ? (record.gst_rate * 100).toFixed(0) : (getGstRate(record.product_name, record.category) * 100).toFixed(0))}%)
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -1763,7 +1763,9 @@ const ShopDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{b.quantity}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">
                         ₹{(b.gst_amount || 0).toFixed(2)}
-                        {b.gst_rate !== undefined && <span className="text-[10px] ml-1">({(b.gst_rate * 100).toFixed(0)}%)</span>}
+                        <span className="text-[10px] ml-1">
+                          ({b.total > 0 ? ((b.gst_amount / b.total) * 100).toFixed(0) : (b.gst_rate !== undefined ? (b.gst_rate * 100).toFixed(0) : 18)}%)
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">₹{(b.grand_total || b.total).toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -2207,7 +2209,9 @@ const ShopDashboard = () => {
                                     <td className="px-4 py-2 text-sm text-gray-700 font-medium">₹{q.total.toFixed(2)}</td>
                                     <td className="px-4 py-2 text-sm text-gray-500 italic">
                                       ₹{(q.gst_amount || 0).toFixed(2)}
-                                      {q.gst_rate !== undefined && <span className="text-[10px] ml-1">({(q.gst_rate * 100).toFixed(0)}%)</span>}
+                                      <span className="text-[10px] ml-1">
+                                        ({q.total > 0 ? ((q.gst_amount / q.total) * 100).toFixed(0) : (q.gst_rate !== undefined ? (q.gst_rate * 100).toFixed(0) : 18)}%)
+                                      </span>
                                     </td>
                                     <td className="px-4 py-2 text-sm font-bold text-green-700">₹{(q.grand_total || q.total).toFixed(2)}</td>
                                     <td className="px-4 py-2 text-sm">

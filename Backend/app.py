@@ -58,6 +58,20 @@ def create_app():
                     db.session.commit()
                     print(f"SUCCESS: Added '{column}' to '{table}'")
 
+            # 1.5 Sync existing GST rates (Fix legacy 18% default)
+            print("INFO: Syncing legacy GST rates...")
+            from models import SupplierQuote, SupplierBill, Transaction
+            
+            # Quotes
+            db.session.execute(text("UPDATE supplier_quotes SET gst_rate = ROUND(gst_amount / total, 4) WHERE total > 0 AND gst_rate = 0.18"))
+            # Bills
+            db.session.execute(text("UPDATE supplier_bills SET gst_rate = ROUND(gst_amount / total, 4) WHERE total > 0 AND gst_rate = 0.18"))
+            # Transactions
+            db.session.execute(text("UPDATE transactions SET gst_rate = ROUND(gst_amount / (quantity * unit_price), 4) WHERE (quantity * unit_price) > 0 AND gst_rate = 0.18"))
+            
+            db.session.commit()
+            print("SUCCESS: Legacy GST rates synchronized.")
+
             # 2. Ensure product_batches table exists
             try:
                 db.session.execute(text("SELECT id FROM product_batches LIMIT 1"))
