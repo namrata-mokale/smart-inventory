@@ -1487,6 +1487,15 @@ def edit_product(product_id):
 
     data = request.json
     
+    # Safe parsing helpers
+    def safe_float(v, default=0.0):
+        try: return float(v) if v not in [None, ''] else default
+        except: return default
+    
+    def safe_int(v, default=0):
+        try: return int(v) if v not in [None, ''] else default
+        except: return default
+
     # Update product fields
     if 'name' in data:
         product.name = data['name']
@@ -1495,11 +1504,11 @@ def edit_product(product_id):
     if 'sku' in data:
         product.sku = data['sku']
     if 'min_level' in data:
-        product.min_level = int(data['min_level'])
+        product.min_level = safe_int(data['min_level'], 10)
     if 'reorder_level' in data:
-        product.reorder_level = int(data['reorder_level'])
+        product.reorder_level = safe_int(data['reorder_level'], 20)
     if 'shelf_life_days' in data:
-        product.shelf_life_days = int(data['shelf_life_days'])
+        product.shelf_life_days = safe_int(data['shelf_life_days'])
     if 'expiry_date' in data and data['expiry_date']:
         try:
             product.expiry_date = datetime.strptime(data['expiry_date'], '%Y-%m-%d').date()
@@ -1510,11 +1519,11 @@ def edit_product(product_id):
         # Sync global prices with the first variation for model compatibility (nullable=False constraint)
         first_opt = data['unit_options'][0]
         if 'selling_price' in first_opt and first_opt['selling_price']:
-            product.selling_price = float(first_opt['selling_price'])
+            product.selling_price = safe_float(first_opt['selling_price'])
         if 'cost_price' in first_opt and first_opt['cost_price']:
-            product.cost_price = float(first_opt['cost_price'])
+            product.cost_price = safe_float(first_opt['cost_price'])
         elif 'selling_price' in first_opt and first_opt['selling_price']:
-            product.cost_price = float(first_opt['selling_price']) * 0.7 # Fallback estimate
+            product.cost_price = safe_float(first_opt['selling_price']) * 0.7 # Fallback estimate
 
         for opt_data in data['unit_options']:
             if 'id' in opt_data:
@@ -1522,23 +1531,23 @@ def edit_product(product_id):
                 opt = ProductUnitOption.query.get(opt_data['id'])
                 if opt and opt.product_id == product.id:
                     if 'unit_type' in opt_data: opt.unit_type = opt_data['unit_type']
-                    if 'unit_value' in opt_data: opt.unit_value = float(opt_data['unit_value'])
-                    if 'selling_price' in opt_data: opt.selling_price = float(opt_data['selling_price'])
-                    if 'cost_price' in opt_data: opt.cost_price = float(opt_data['cost_price'])
-                    if 'stock_quantity' in opt_data: opt.stock_quantity = int(opt_data['stock_quantity'])
-                    if 'reorder_level' in opt_data: opt.reorder_level = int(opt_data['reorder_level'])
-                    if 'restock_quantity' in opt_data: opt.restock_quantity = int(opt_data['restock_quantity'])
+                    if 'unit_value' in opt_data: opt.unit_value = safe_float(opt_data['unit_value'])
+                    if 'selling_price' in opt_data: opt.selling_price = safe_float(opt_data['selling_price'])
+                    if 'cost_price' in opt_data: opt.cost_price = safe_float(opt_data['cost_price'])
+                    if 'stock_quantity' in opt_data: opt.stock_quantity = safe_int(opt_data['stock_quantity'])
+                    if 'reorder_level' in opt_data: opt.reorder_level = safe_int(opt_data['reorder_level'])
+                    if 'restock_quantity' in opt_data: opt.restock_quantity = safe_int(opt_data['restock_quantity'])
             else:
                 # Add new variation
                 new_opt = ProductUnitOption(
                     product_id=product.id,
                     unit_type=opt_data.get('unit_type', 'units'),
-                    unit_value=float(opt_data.get('unit_value', 1)),
-                    selling_price=float(opt_data.get('selling_price', 0)),
-                    cost_price=float(opt_data.get('cost_price', 0)),
-                    stock_quantity=int(opt_data.get('stock_quantity', 0)),
-                    reorder_level=int(opt_data.get('reorder_level', 10)),
-                    restock_quantity=int(opt_data.get('restock_quantity', 50))
+                    unit_value=safe_float(opt_data.get('unit_value', 1)),
+                    selling_price=safe_float(opt_data.get('selling_price', 0)),
+                    cost_price=safe_float(opt_data.get('cost_price', 0)),
+                    stock_quantity=safe_int(opt_data.get('stock_quantity', 0)),
+                    reorder_level=safe_int(opt_data.get('reorder_level', 10)),
+                    restock_quantity=safe_int(opt_data.get('restock_quantity', 50))
                 )
                 db.session.add(new_opt)
     
