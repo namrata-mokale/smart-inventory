@@ -42,7 +42,6 @@ def list_shop_bills():
             "shop_unit_price": b.shop_unit_price, # Return shop's selling price for analysis
             "discount_percent": b.discount_percent,
             "total": b.total,
-            "gst_rate": b.gst_rate,
             "gst_amount": b.gst_amount,
             "grand_total": b.grand_total,
             "status": b.status
