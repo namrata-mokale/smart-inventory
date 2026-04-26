@@ -180,14 +180,10 @@ const SupplierDashboard = () => {
     const exempt = ["milk", "curd", "lassi", "paneer", "vegetable", "fruit", "pulse", "wheat flour", "atta", "rice", "salt", "honey", "roti", "naan", "khakhra", "chapati", "papad", "besan", "stamp", "postal", "book", "newspaper", "bangle", "earthenware", "sanitary napkin"];
     const reduced = ["butter", "ghee", "cheese", "paneer", "namkeen", "bhujia", "jam", "jelly", "pasta", "cornflake", "oil", "shampoo", "soap", "toothpaste", "toothbrush", "detergent", "tableware", "kitchenware", "sewing machine"];
 
-    // User said: branded/packaged versions might have GST while fresh/unlabeled don't.
-    // Heuristic: if name contains 'branded', 'packaged', or 'processed', it's NOT exempt.
     const isBranded = n.includes("branded") || n.includes("packaged") || n.includes("processed");
 
     if (!isBranded) {
       if (exempt.some(item => n.includes(item) || c.includes(item))) {
-        // Exception: branded paneer is 5%
-        if (n.includes("paneer") && isBranded) return 0.05;
         return 0;
       }
     }
@@ -495,8 +491,7 @@ const SupplierDashboard = () => {
                                                   </div>
                                                   <button onClick={() => submitQuote(req.id)} className="col-span-2 bg-green-600 text-white rounded px-3 py-2 text-sm font-bold hover:bg-green-700 mt-1 shadow-sm transition-all">Submit Quote with Batch Details</button>
                                                 </div>
-                                                {quoteInputs[req.id]?.discount_percent > 0 && (
-                                                  <div className="space-y-1 mb-2">
+                                                <div className="space-y-1 mb-2">
                                                     <div className="text-xs text-right text-gray-500">
                                                       Net Price: ₹{(req.base_price * req.quantity * (1 - (quoteInputs[req.id]?.discount_percent || 0)/100)).toFixed(2)}
                                                     </div>
@@ -507,7 +502,6 @@ const SupplierDashboard = () => {
                                                       Grand Total: ₹{(req.base_price * req.quantity * (1 - (quoteInputs[req.id]?.discount_percent || 0)/100) * (1 + getGstRate(req.product_name, req.category))).toFixed(2)}
                                                     </div>
                                                   </div>
-                                                )}
                                                 <div className="text-xs text-gray-500">
                                                   {req.status === 'Pending' ? 'First quote becomes Provisional.' : 'Submit a competing quote.'}
                                                 </div>
@@ -797,7 +791,7 @@ const SupplierDashboard = () => {
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Shop</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">GST (18%)</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">GST</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Grand Total</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       </tr>
@@ -816,7 +810,10 @@ const SupplierDashboard = () => {
                             )}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-900">{b.quantity}</td>
-                          <td className="px-4 py-2 text-sm text-gray-500 italic">₹{(b.gst_amount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500 italic">
+                            ₹{(b.gst_amount || 0).toFixed(2)}
+                            {b.gst_rate !== undefined && <span className="text-[10px] ml-1">({(b.gst_rate * 100).toFixed(0)}%)</span>}
+                          </td>
                           <td className="px-4 py-2 text-sm font-bold text-green-600">₹{(b.grand_total || b.total).toFixed(2)}</td>
                           <td className="px-4 py-2">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -847,7 +844,7 @@ const SupplierDashboard = () => {
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Subtotal</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">GST (18%)</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">GST</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Grand Total</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       </tr>
@@ -867,7 +864,10 @@ const SupplierDashboard = () => {
                           </td>
                           <td className="px-4 py-2">{b.quantity}</td>
                           <td className="px-4 py-2">₹{b.total.toFixed(2)}</td>
-                          <td className="px-4 py-2 text-gray-500 italic">₹{(b.gst_amount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-2 text-gray-500 italic">
+                            ₹{(b.gst_amount || 0).toFixed(2)}
+                            {b.gst_rate !== undefined && <span className="text-[10px] ml-1">({(b.gst_rate * 100).toFixed(0)}%)</span>}
+                          </td>
                           <td className="px-4 py-2 font-bold text-green-600">₹{(b.grand_total || b.total).toFixed(2)}</td>
                           <td className="px-4 py-2">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${b.status === 'Awaiting Payment' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>

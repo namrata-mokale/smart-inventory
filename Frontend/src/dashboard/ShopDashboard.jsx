@@ -1506,8 +1506,8 @@ const ShopDashboard = () => {
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Salesman</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Subtotal</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">GST (18%)</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">GST</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
                       </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -1525,7 +1525,10 @@ const ShopDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium">{record.customer_name || '-'}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 font-medium">{record.salesman}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹{Number(record.total_price || 0).toLocaleString('en-IN')}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹{Number(record.gst_amount || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">
+                            ₹{Number(record.gst_amount || 0).toLocaleString('en-IN')}
+                            {record.gst_rate !== undefined && <span className="text-[10px] ml-1">({(record.gst_rate * 100).toFixed(0)}%)</span>}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-2">
                               <span className="text-xl font-bold text-green-600">₹{Number(record.grand_total || record.total_price || 0).toLocaleString('en-IN')}</span>
@@ -1736,7 +1739,7 @@ const ShopDashboard = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Supplier</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Product</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Qty</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">GST (18%)</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">GST</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Grand Total</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase">Action</th>
@@ -1756,7 +1759,10 @@ const ShopDashboard = () => {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{b.quantity}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">₹{(b.gst_amount || 0).toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">
+                        ₹{(b.gst_amount || 0).toFixed(2)}
+                        {b.gst_rate !== undefined && <span className="text-[10px] ml-1">({(b.gst_rate * 100).toFixed(0)}%)</span>}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">₹{(b.grand_total || b.total).toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${b.status === 'Awaiting Payment' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
@@ -1884,7 +1890,7 @@ const ShopDashboard = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Product</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Quantity</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Amount (Excl. GST)</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">GST (18%)</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">GST</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Grand Total Paid</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase">Action</th>
@@ -2184,7 +2190,7 @@ const ShopDashboard = () => {
                                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Unit Price</th>
                                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Discount %</th>
                                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Total</th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">GST (18%)</th>
+                                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">GST</th>
                                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Grand Total</th>
                                   <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
                                   <th className="px-4 py-2"></th>
@@ -2197,7 +2203,10 @@ const ShopDashboard = () => {
                                     <td className="px-4 py-2 text-sm">₹{q.unit_price}</td>
                                     <td className="px-4 py-2 text-sm">{q.discount_percent}</td>
                                     <td className="px-4 py-2 text-sm text-gray-700 font-medium">₹{q.total.toFixed(2)}</td>
-                                    <td className="px-4 py-2 text-sm text-gray-500 italic">₹{(q.gst_amount || 0).toFixed(2)}</td>
+                                    <td className="px-4 py-2 text-sm text-gray-500 italic">
+                                      ₹{(q.gst_amount || 0).toFixed(2)}
+                                      {q.gst_rate !== undefined && <span className="text-[10px] ml-1">({(q.gst_rate * 100).toFixed(0)}%)</span>}
+                                    </td>
                                     <td className="px-4 py-2 text-sm font-bold text-green-700">₹{(q.grand_total || q.total).toFixed(2)}</td>
                                     <td className="px-4 py-2 text-sm">
                                       {q.status === 'Accepted' ? (
@@ -2723,7 +2732,10 @@ const ShopDashboard = () => {
                   <span className="text-gray-700 font-medium">₹{selectedBill.total.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-500 text-sm">GST (18%)</span>
+                  <span className="text-gray-500 text-sm">
+                    GST 
+                    {selectedBill.gst_rate !== undefined && <span className="ml-1 text-xs">({(selectedBill.gst_rate * 100).toFixed(0)}%)</span>}
+                  </span>
                   <span className="text-gray-700 font-medium">₹{(selectedBill.gst_amount || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">

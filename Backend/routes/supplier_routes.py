@@ -352,7 +352,11 @@ def submit_quote(req_id):
             return jsonify({"message": "Invalid base price in catalog"}), 400
             
         total = unit_price * req.quantity_needed * (1 - discount_percent/100)
-        gst_amount = total * 0.18
+        
+        # Calculate dynamic GST based on product name and category
+        from services.gst_service import get_gst_rate
+        gst_rate = get_gst_rate(product.name, product.category)
+        gst_amount = total * gst_rate
         grand_total = total + gst_amount
 
         existing_count = SupplierQuote.query.filter_by(supply_request_id=req.id).count()
@@ -364,6 +368,7 @@ def submit_quote(req_id):
             unit_price=unit_price,
             discount_percent=discount_percent,
             total=total,
+            gst_rate=gst_rate,
             gst_amount=gst_amount,
             grand_total=grand_total,
             expiry_date=expiry_date,

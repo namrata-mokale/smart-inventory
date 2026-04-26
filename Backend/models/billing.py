@@ -15,6 +15,7 @@ class SupplierBill(db.Model):
     shop_unit_price = db.Column(db.Float, nullable=True) # Shop's current selling price at time of order
     discount_percent = db.Column(db.Float, default=0.0)
     total = db.Column(db.Float, nullable=False) # Subtotal
+    gst_rate = db.Column(db.Float, default=0.18) # Actual GST rate percentage (e.g., 0.18 for 18%)
     gst_amount = db.Column(db.Float, default=0.0)
     grand_total = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(20), default='Pending') # Pending, Awaiting Payment, Paid, Failed
@@ -38,6 +39,7 @@ class SupplierQuote(db.Model):
     unit_price = db.Column(db.Float, nullable=False)
     discount_percent = db.Column(db.Float, default=0.0)
     total = db.Column(db.Float, nullable=False) # Subtotal
+    gst_rate = db.Column(db.Float, default=0.18) # Actual GST rate percentage (e.g., 0.18 for 18%)
     gst_amount = db.Column(db.Float, default=0.0)
     grand_total = db.Column(db.Float, nullable=False)
     expiry_date = db.Column(db.Date, nullable=True) # Expiry date offered by supplier

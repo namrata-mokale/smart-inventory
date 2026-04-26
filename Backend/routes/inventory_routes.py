@@ -1162,6 +1162,9 @@ def list_shop_requests():
                 "unit_price": q.unit_price,
                 "discount_percent": q.discount_percent,
                 "total": q.total,
+                "gst_rate": q.gst_rate,
+                "gst_amount": q.gst_amount,
+                "grand_total": q.grand_total,
                 "status": q.status,
                 "is_provisional": q.status == 'Provisional',
                 "created_at": q.created_at.strftime('%Y-%m-%d %H:%M:%S')
@@ -1200,6 +1203,7 @@ def get_quotes_for_request(req_id):
             "unit_price": q.unit_price,
             "discount_percent": q.discount_percent,
             "total": q.total,
+            "gst_rate": q.gst_rate,
             "gst_amount": q.gst_amount,
             "grand_total": q.grand_total,
             "status": q.status
@@ -1280,6 +1284,7 @@ def accept_quote(quote_id):
             shop_unit_price=shop_unit_price, # Store shop's selling price
             discount_percent=q.discount_percent,
             total=q.total,
+            gst_rate=q.gst_rate,
             gst_amount=q.gst_amount,
             grand_total=q.grand_total,
             expiry_date=q.expiry_date, # Carry over the supplier's provided expiry date
