@@ -160,6 +160,7 @@ def get_supply_requests():
             # Determine the display status for "Your Quote"
             my_quote_status = existing_quote.status if existing_quote else None
             my_quote_gst = existing_quote.gst_amount if existing_quote else 0.0
+            my_quote_gst_rate = existing_quote.gst_rate if existing_quote else 0.0
             my_quote_grand_total = existing_quote.grand_total if existing_quote else 0.0
 
             result.append({
@@ -182,6 +183,7 @@ def get_supply_requests():
                 "has_quoted": existing_quote is not None,
                 "my_quote_status": my_quote_status,
                 "my_quote_gst": my_quote_gst,
+                "my_quote_gst_rate": my_quote_gst_rate,
                 "my_quote_grand_total": my_quote_grand_total,
                 "is_winner": existing_quote.status == 'Accepted' if existing_quote else False,
                 "is_top_customer": req.shop_id == top_shop_id if top_shop_id else False,
@@ -369,6 +371,7 @@ def submit_quote(req_id):
             unit_price=unit_price,
             discount_percent=discount_percent,
             total=total,
+            gst_rate=gst_rate,
             gst_amount=gst_amount,
             grand_total=grand_total,
             expiry_date=expiry_date,

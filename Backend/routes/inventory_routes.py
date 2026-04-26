@@ -295,6 +295,7 @@ def record_transaction():
                 incentive_amount=float(incentive),
                 is_birthday_sale=is_birthday_sale,
                 discount_amount=float(final_discount_amount * quantity),
+                gst_rate=gst_rate,
                 gst_amount=float(gst_amount),
                 total_amount=float(grand_total),
                 unit_type=unit_type,
@@ -666,6 +667,7 @@ def get_sales_history():
                 "is_birthday_sale": bool(r.get('is_birthday_sale')),
                 "historical_badge": get_historical_badge(pid),
                 "discount_amount": r.get('discount_amount') or 0,
+                "gst_rate": r.get('gst_rate') or 0.18,
                 "unit_type": r.get('unit_type'),
                 "unit_value": r.get('unit_value')
             })
@@ -1209,6 +1211,7 @@ def get_quotes_for_request(req_id):
             "unit_price": q.unit_price,
             "discount_percent": q.discount_percent,
             "total": q.total,
+            "gst_rate": q.gst_rate,
             "gst_amount": q.gst_amount,
             "grand_total": q.grand_total,
             "status": q.status
@@ -1289,6 +1292,7 @@ def accept_quote(quote_id):
             shop_unit_price=shop_unit_price, # Store shop's selling price
             discount_percent=q.discount_percent,
             total=q.total,
+            gst_rate=q.gst_rate,
             gst_amount=q.gst_amount,
             grand_total=q.grand_total,
             expiry_date=q.expiry_date, # Carry over the supplier's provided expiry date
