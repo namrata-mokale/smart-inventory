@@ -519,11 +519,23 @@ def get_products():
         if earliest_batch:
             p.expiry_date = earliest_batch.expiry_date
         
-        # If total stock is 0, archive it
-        if p.stock_quantity <= 0:
+        # Automatically archive EXPIRED products
+        if p.expiry_date and p.expiry_date < today:
             p.is_archived = True
-        else:
-            p.is_archived = False
+            # Also move to ExpiredProduct table for review (if not already there)
+            from models import ExpiredProduct
+            exists = ExpiredProduct.query.filter_by(product_id=p.id).first()
+            if not exists:
+                archived = ExpiredProduct(
+                    product_id=p.id,
+                    shop_id=p.shop_id,
+                    name=p.name,
+                    sku=p.sku,
+                    category=p.category,
+                    stock=p.stock_quantity,
+                    expiry_date=p.expiry_date
+                )
+                db.session.add(archived)
             
     db.session.commit()
 
