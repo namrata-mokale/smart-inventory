@@ -563,7 +563,8 @@ const ShopDashboard = () => {
     min_level: '',
     reorder_level: '',
     expiry_date: '',
-    shelf_life_days: ''
+    shelf_life_days: '',
+    unit_options: []
   });
 
   const handleEditProduct = async (e) => {
@@ -602,7 +603,8 @@ const ShopDashboard = () => {
       min_level: product.min_level || 10,
       reorder_level: product.reorder_level || 20,
       expiry_date: product.expiry_date || '',
-      shelf_life_days: product.shelf_life_days || ''
+      shelf_life_days: product.shelf_life_days || '',
+      unit_options: product.unit_options || []
     });
     setShowEditModal(true);
   };
@@ -2942,6 +2944,73 @@ const ShopDashboard = () => {
                     onChange={e => setEditForm({...editForm, reorder_level: e.target.value})} 
                   />
                 </div>
+              </div>
+
+              {/* UNIT VARIATIONS EDIT SECTION */}
+              <div className="border-t pt-4 mt-2">
+                  <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-xs font-bold text-gray-700 uppercase tracking-widest">Unit Variations</h4>
+                      <button type="button" onClick={() => {
+                          setEditForm({...editForm, unit_options: [...editForm.unit_options, { unit_type: 'units', unit_value: '', cost_price: '', selling_price: '', stock_quantity: '', reorder_level: '10', restock_quantity: '50' }]});
+                      }} className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100 font-bold flex items-center">
+                          <FaPlusCircle className="mr-1" /> Add Variation
+                      </button>
+                  </div>
+                  <div className="space-y-3">
+                      {editForm.unit_options.map((opt, index) => (
+                          <div key={index} className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200 relative group">
+                              <div>
+                                  <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Qty</label>
+                                  <input type="number" step="0.1" required className="w-full border-gray-300 rounded px-2 py-1 text-xs" 
+                                      value={opt.unit_value} onChange={e => {
+                                          const newOpts = [...editForm.unit_options];
+                                          newOpts[index].unit_value = e.target.value;
+                                          setEditForm({...editForm, unit_options: newOpts});
+                                      }} />
+                              </div>
+                              <div>
+                                  <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Unit</label>
+                                  <select className="w-full border-gray-300 rounded px-2 py-1 text-xs"
+                                      value={opt.unit_type} onChange={e => {
+                                          const newOpts = [...editForm.unit_options];
+                                          newOpts[index].unit_type = e.target.value;
+                                          setEditForm({...editForm, unit_options: newOpts});
+                                      }}>
+                                      <option value="kg">kg</option>
+                                      <option value="grams">grams</option>
+                                      <option value="litres">litres</option>
+                                      <option value="ml">ml</option>
+                                      <option value="units">units</option>
+                                      <option value="packets">packets</option>
+                                  </select>
+                              </div>
+                              <div>
+                                  <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Price</label>
+                                  <input type="number" step="0.01" required className="w-full border-gray-300 rounded px-2 py-1 text-xs" 
+                                      value={opt.selling_price} onChange={e => {
+                                          const newOpts = [...editForm.unit_options];
+                                          newOpts[index].selling_price = e.target.value;
+                                          setEditForm({...editForm, unit_options: newOpts});
+                                      }} />
+                              </div>
+                              <div>
+                                  <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Stock</label>
+                                  <input type="number" required className="w-full border-gray-300 rounded px-2 py-1 text-xs" 
+                                      value={opt.stock_quantity} onChange={e => {
+                                          const newOpts = [...editForm.unit_options];
+                                          newOpts[index].stock_quantity = e.target.value;
+                                          setEditForm({...editForm, unit_options: newOpts});
+                                      }} />
+                              </div>
+                              <button type="button" onClick={() => {
+                                  const newOpts = editForm.unit_options.filter((_, i) => i !== index);
+                                  setEditForm({...editForm, unit_options: newOpts});
+                              }} className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <FaTrash size={10} />
+                              </button>
+                          </div>
+                      ))}
+                  </div>
               </div>
               
               <div className="pt-6 flex space-x-3">

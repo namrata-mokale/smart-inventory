@@ -1510,8 +1510,33 @@ def edit_product(product_id):
         except ValueError:
             pass # Keep old date if format is wrong
 
-    # If product has variations (unit_options), we might need to update them too
-    # For now, we update the main product. Variations are usually added separately.
+    # Update unit variations (unit_options) if provided
+    if 'unit_options' in data:
+        for opt_data in data['unit_options']:
+            if 'id' in opt_data:
+                # Update existing variation
+                opt = ProductUnitOption.query.get(opt_data['id'])
+                if opt and opt.product_id == product.id:
+                    if 'unit_type' in opt_data: opt.unit_type = opt_data['unit_type']
+                    if 'unit_value' in opt_data: opt.unit_value = float(opt_data['unit_value'])
+                    if 'selling_price' in opt_data: opt.selling_price = float(opt_data['selling_price'])
+                    if 'cost_price' in opt_data: opt.cost_price = float(opt_data['cost_price'])
+                    if 'stock_quantity' in opt_data: opt.stock_quantity = int(opt_data['stock_quantity'])
+                    if 'reorder_level' in opt_data: opt.reorder_level = int(opt_data['reorder_level'])
+                    if 'restock_quantity' in opt_data: opt.restock_quantity = int(opt_data['restock_quantity'])
+            else:
+                # Add new variation
+                new_opt = ProductUnitOption(
+                    product_id=product.id,
+                    unit_type=opt_data.get('unit_type', 'units'),
+                    unit_value=float(opt_data.get('unit_value', 1)),
+                    selling_price=float(opt_data.get('selling_price', 0)),
+                    cost_price=float(opt_data.get('cost_price', 0)),
+                    stock_quantity=int(opt_data.get('stock_quantity', 0)),
+                    reorder_level=int(opt_data.get('reorder_level', 10)),
+                    restock_quantity=int(opt_data.get('restock_quantity', 50))
+                )
+                db.session.add(new_opt)
     
     db.session.commit()
     
