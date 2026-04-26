@@ -1527,7 +1527,9 @@ const ShopDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹{Number(record.total_price || 0).toLocaleString('en-IN')}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">
                             ₹{Number(record.gst_amount || 0).toLocaleString('en-IN')}
-                            {record.gst_rate !== undefined && <span className="text-[10px] ml-1">({(record.gst_rate * 100).toFixed(0)}%)</span>}
+                            <span className="text-[10px] ml-1">
+                              ({record.gst_rate !== undefined ? (record.gst_rate * 100).toFixed(0) : (getGstRate(record.product_name, record.category) * 100).toFixed(0)}%)
+                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-2">
