@@ -491,8 +491,8 @@ def get_products():
         
     from models import ProductBatch
     
-    # 1. Fetch ALL products
-    products = Product.query.filter_by(shop_id=shop_id).all()
+    # 1. Fetch ALL products (that are not archived)
+    products = Product.query.filter_by(shop_id=shop_id, is_archived=False).all()
     today = datetime.now().date()
     
     # 2. Re-calculate main stock_quantity from batches to ensure sync
@@ -1452,6 +1452,67 @@ def retry_restock(bill_id):
     
     return jsonify({"message": "New restock request generated successfully", "request_id": new_req.id}), 200
 
+@inventory_bp.route('/<int:product_id>/edit', methods=['PUT', 'OPTIONS'])
+@jwt_required()
+def edit_product(product_id):
+    if request.method == 'OPTIONS':
+        return jsonify({"message": "OK"}), 200
+
+    current_user = get_jwt_identity()
+    if current_user['role'] != 'shop_owner':
+        return jsonify({"message": "Unauthorized"}), 403
+        
+    shop = Shop.query.filter_by(owner_id=current_user['id']).first()
+    if not shop:
+        return jsonify({"message": "Shop not found"}), 404
+        
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({"message": "Product not found"}), 404
+        
+    if product.shop_id != shop.id:
+        return jsonify({"message": "Unauthorized to edit this product"}), 403
+
+    data = request.json
+    
+    # Update product fields
+    if 'name' in data:
+        product.name = data['name']
+    if 'category' in data:
+        product.category = data['category']
+    if 'sku' in data:
+        product.sku = data['sku']
+    if 'selling_price' in data:
+        product.selling_price = float(data['selling_price'])
+    if 'cost_price' in data:
+        product.cost_price = float(data['cost_price'])
+    if 'min_level' in data:
+        product.min_level = int(data['min_level'])
+    if 'reorder_level' in data:
+        product.reorder_level = int(data['reorder_level'])
+    if 'shelf_life_days' in data:
+        product.shelf_life_days = int(data['shelf_life_days'])
+    if 'expiry_date' in data and data['expiry_date']:
+        try:
+            product.expiry_date = datetime.strptime(data['expiry_date'], '%Y-%m-%d').date()
+        except ValueError:
+            pass # Keep old date if format is wrong
+
+    # If product has variations (unit_options), we might need to update them too
+    # For now, we update the main product. Variations are usually added separately.
+    
+    db.session.commit()
+    
+    return jsonify({
+        "message": "Product updated successfully",
+        "product": {
+            "id": product.id,
+            "name": product.name,
+            "selling_price": product.selling_price,
+            "stock_quantity": product.stock_quantity
+        }
+    }), 200
+
 @inventory_bp.route('/<int:product_id>/delete', methods=['POST'])
 @inventory_bp.route('/<int:product_id>/delete/', methods=['POST'])
 @jwt_required()
@@ -1471,10 +1532,11 @@ def delete_product_post(product_id):
     if product.shop_id != shop.id:
         return jsonify({"message": "Unauthorized to delete this product"}), 403
         
-    db.session.delete(product)
+    # Use soft delete (archive) instead of hard delete to preserve historical integrity
+    product.is_archived = True
     db.session.commit()
     
-    return jsonify({"message": "Product deleted successfully"}), 200
+    return jsonify({"message": "Product archived successfully"}), 200
 
 @inventory_bp.route('/<int:product_id>', methods=['DELETE', 'OPTIONS'])
 @jwt_required()
@@ -1497,7 +1559,8 @@ def delete_product(product_id):
     if product.shop_id != shop.id:
         return jsonify({"message": "Unauthorized to delete this product"}), 403
         
-    db.session.delete(product)
+    # Use soft delete (archive) instead of hard delete to preserve historical integrity
+    product.is_archived = True
     db.session.commit()
     
-    return jsonify({"message": "Product deleted successfully"}), 200
+    return jsonify({"message": "Product archived successfully"}), 200

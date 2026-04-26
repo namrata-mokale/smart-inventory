@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
-import { FaBox, FaChartLine, FaHistory, FaPlusCircle, FaSignOutAlt, FaCloudSun, FaExclamationTriangle, FaMoneyBillWave, FaShoppingCart, FaTrash, FaUsers, FaEnvelope, FaBell, FaUserTag, FaClipboardList, FaCheckCircle, FaStore } from 'react-icons/fa';
+import { FaBox, FaChartLine, FaHistory, FaPlusCircle, FaSignOutAlt, FaCloudSun, FaExclamationTriangle, FaMoneyBillWave, FaShoppingCart, FaTrash, FaUsers, FaEnvelope, FaBell, FaUserTag, FaClipboardList, FaCheckCircle, FaStore, FaEdit } from 'react-icons/fa';
 import { API_BASE_URL } from '../config';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
@@ -550,6 +550,61 @@ const ShopDashboard = () => {
   const handlePayBill = (bill) => {
       setSelectedBill(bill);
       setShowPaymentModal(true);
+  };
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    category: '',
+    sku: '',
+    selling_price: '',
+    cost_price: '',
+    min_level: '',
+    reorder_level: '',
+    expiry_date: '',
+    shelf_life_days: ''
+  });
+
+  const handleEditProduct = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE_URL}/inventory/${editingProduct.id}/edit`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editForm)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert('Product updated successfully');
+        setShowEditModal(false);
+        fetchProducts(); // Refresh the list
+      } else {
+        alert(data.message || 'Failed to update product');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network Error');
+    }
+  };
+
+  const openEditModal = (product) => {
+    setEditingProduct(product);
+    setEditForm({
+      name: product.name,
+      category: product.category,
+      sku: product.sku,
+      selling_price: product.price,
+      cost_price: product.cost_price || '',
+      min_level: product.min_level || 10,
+      reorder_level: product.reorder_level || 20,
+      expiry_date: product.expiry_date || '',
+      shelf_life_days: product.shelf_life_days || ''
+    });
+    setShowEditModal(true);
   };
 
   const handleRetryRestock = async (billId) => {
@@ -1138,9 +1193,14 @@ const ShopDashboard = () => {
                           )}
                           <td className="px-6 py-4 whitespace-nowrap text-right">
                             {role === 'shop_owner' && (
-                              <button onClick={() => handleDeleteProduct(product.id)} className="text-red-600 hover:text-red-800">
-                                <FaTrash />
-                              </button>
+                              <div className="flex justify-end space-x-3">
+                                <button onClick={() => openEditModal(product)} className="text-indigo-600 hover:text-indigo-800" title="Edit Product">
+                                  <FaEdit />
+                                </button>
+                                <button onClick={() => handleDeleteProduct(product.id)} className="text-red-600 hover:text-red-800" title="Delete Product">
+                                  <FaTrash />
+                                </button>
+                              </div>
                             )}
                           </td>
                           </tr>
@@ -2740,7 +2800,9 @@ const ShopDashboard = () => {
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-gray-500 text-sm">
                     GST 
-                    {selectedBill.gst_rate !== undefined && <span className="ml-1 text-xs">({(selectedBill.gst_rate * 100).toFixed(0)}%)</span>}
+                    <span className="ml-1 text-xs">
+                      ({selectedBill.total > 0 ? ((selectedBill.gst_amount / selectedBill.total) * 100).toFixed(0) : (selectedBill.gst_rate !== undefined ? (selectedBill.gst_rate * 100).toFixed(0) : 18)}%)
+                    </span>
                   </span>
                   <span className="text-gray-700 font-medium">₹{(selectedBill.gst_amount || 0).toFixed(2)}</span>
                 </div>
@@ -2793,6 +2855,111 @@ const ShopDashboard = () => {
                 <FaBox className="mr-2" /> Secure 256-bit SSL Encrypted Payment
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PRODUCT MODAL */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
+              <h3 className="text-xl font-bold">Edit Product: {editingProduct?.name}</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-white hover:text-indigo-200 transition-colors">
+                <FaSignOutAlt className="transform rotate-180 text-xl" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleEditProduct} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 uppercase text-[10px] tracking-wider">Product Name</label>
+                  <input 
+                    type="text" required 
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={editForm.name} 
+                    onChange={e => setEditForm({...editForm, name: e.target.value})} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 uppercase text-[10px] tracking-wider">Category</label>
+                  <select 
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={editForm.category} 
+                    onChange={e => setEditForm({...editForm, category: e.target.value})}
+                  >
+                    <option>General</option>
+                    <option>Perishable Goods</option>
+                    <option>Pharmaceuticals</option>
+                    <option>Clothes</option>
+                    <option>Electronics</option>
+                    <option>Consumables</option>
+                    <option>High-Value Items</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 uppercase text-[10px] tracking-wider">SKU</label>
+                  <input 
+                    type="text" required 
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={editForm.sku} 
+                    onChange={e => setEditForm({...editForm, sku: e.target.value})} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 uppercase text-[10px] tracking-wider">Selling Price (₹)</label>
+                  <input 
+                    type="number" step="0.01" required 
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={editForm.selling_price} 
+                    onChange={e => setEditForm({...editForm, selling_price: e.target.value})} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 uppercase text-[10px] tracking-wider">Cost Price (₹)</label>
+                  <input 
+                    type="number" step="0.01" required 
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={editForm.cost_price} 
+                    onChange={e => setEditForm({...editForm, cost_price: e.target.value})} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 uppercase text-[10px] tracking-wider">Min Level</label>
+                  <input 
+                    type="number" required 
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={editForm.min_level} 
+                    onChange={e => setEditForm({...editForm, min_level: e.target.value})} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 uppercase text-[10px] tracking-wider">Reorder Level</label>
+                  <input 
+                    type="number" required 
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={editForm.reorder_level} 
+                    onChange={e => setEditForm({...editForm, reorder_level: e.target.value})} 
+                  />
+                </div>
+              </div>
+              
+              <div className="pt-6 flex space-x-3">
+                <button 
+                  type="button" 
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
+                >
+                  Update Inventory
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
