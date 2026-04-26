@@ -41,6 +41,7 @@ def create_app():
                 ('supplier_bills', 'gst_rate', 'FLOAT DEFAULT 0.18'),
                 ('supplier_quotes', 'expiry_date', 'DATE'),
                 ('supplier_quotes', 'gst_rate', 'FLOAT DEFAULT 0.18'),
+                ('transactions', 'gst_rate', 'FLOAT DEFAULT 0.18'),
                 ('transactions', 'gst_amount', 'FLOAT DEFAULT 0.0'),
                 ('transactions', 'total_amount', 'FLOAT'),
                 ('customers', 'birthday_reward_used', 'BOOLEAN DEFAULT FALSE')
