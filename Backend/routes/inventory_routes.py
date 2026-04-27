@@ -483,140 +483,158 @@ def notify_suppliers_for_request(shop_obj, product, qty, unit_type=None, unit_va
 @inventory_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_products():
-    current_user = get_jwt_identity()
-    shop_id = get_shop_id_for_user(current_user)
-    
-    if not shop_id:
-        return jsonify([]), 200
+    try:
+        current_user = get_jwt_identity()
+        shop_id = get_shop_id_for_user(current_user)
         
-    # 1. Fetch ALL products (that are not archived)
-    products = Product.query.filter_by(shop_id=shop_id, is_archived=False).all()
-    today = datetime.now().date()
-    
-    # 2. Re-calculate main stock_quantity from batches to ensure sync
-    for p in products:
-        # Check if variations exist
-        if p.unit_options:
-            for opt in p.unit_options:
-                batches = ProductBatch.query.filter_by(unit_option_id=opt.id).all()
-                if not batches and opt.stock_quantity > 0:
-                    # Create a default batch for existing stock to prevent it being reset to 0
-                    new_batch = ProductBatch(
-                        product_id=p.id,
-                        unit_option_id=opt.id,
-                        quantity=opt.stock_quantity,
-                        expiry_date=p.expiry_date
-                    )
-                    db.session.add(new_batch)
+        print(f"DEBUG: get_products for shop_id: {shop_id}")
+        
+        if not shop_id:
+            return jsonify([]), 200
+            
+        # 1. Fetch ALL products (that are not archived)
+        products = Product.query.filter_by(shop_id=shop_id, is_archived=False).all()
+        today = datetime.now().date()
+        
+        print(f"DEBUG: Found {len(products)} products for shop {shop_id}")
+        
+        # 2. Re-calculate main stock_quantity from batches to ensure sync
+        for p in products:
+            try:
+                # Check if variations exist
+                if p.unit_options:
+                    for opt in p.unit_options:
+                        batches = ProductBatch.query.filter_by(unit_option_id=opt.id).all()
+                        if not batches and opt.stock_quantity > 0:
+                            # Create a default batch for existing stock to prevent it being reset to 0
+                            new_batch = ProductBatch(
+                                product_id=p.id,
+                                unit_option_id=opt.id,
+                                quantity=opt.stock_quantity,
+                                expiry_date=p.expiry_date
+                            )
+                            db.session.add(new_batch)
+                        else:
+                            batch_sum = sum(b.quantity for b in batches)
+                            if opt.stock_quantity != batch_sum:
+                                opt.stock_quantity = batch_sum
+                    p.stock_quantity = sum(o.stock_quantity for o in p.unit_options)
                 else:
-                    batch_sum = sum(b.quantity for b in batches)
-                    if opt.stock_quantity != batch_sum:
-                        opt.stock_quantity = batch_sum
-            p.stock_quantity = sum(o.stock_quantity for o in p.unit_options)
-        else:
-            batches = ProductBatch.query.filter_by(product_id=p.id, unit_option_id=None).all()
-            if not batches and p.stock_quantity > 0:
-                # Create a default batch for existing stock
-                new_batch = ProductBatch(
-                    product_id=p.id,
-                    unit_option_id=None,
-                    quantity=p.stock_quantity,
-                    expiry_date=p.expiry_date
-                )
-                db.session.add(new_batch)
-            else:
-                batch_sum = sum(b.quantity for b in batches)
-                if p.stock_quantity != batch_sum:
-                    p.stock_quantity = batch_sum
+                    batches = ProductBatch.query.filter_by(product_id=p.id, unit_option_id=None).all()
+                    if not batches and p.stock_quantity > 0:
+                        # Create a default batch for existing stock
+                        new_batch = ProductBatch(
+                            product_id=p.id,
+                            unit_option_id=None,
+                            quantity=p.stock_quantity,
+                            expiry_date=p.expiry_date
+                        )
+                        db.session.add(new_batch)
+                    else:
+                        batch_sum = sum(b.quantity for b in batches)
+                        if p.stock_quantity != batch_sum:
+                            p.stock_quantity = batch_sum
+                
+                # Determine EARLIEST expiry date from active batches
+                earliest_batch = ProductBatch.query.filter(
+                    ProductBatch.product_id == p.id,
+                    ProductBatch.expiry_date != None,
+                    ProductBatch.quantity > 0
+                ).order_by(ProductBatch.expiry_date.asc()).first()
+                
+                if earliest_batch:
+                    p.expiry_date = earliest_batch.expiry_date
+                
+                # Automatically archive EXPIRED products
+                if p.expiry_date and p.expiry_date < today:
+                    p.is_archived = True
+                    # Also move to ExpiredProduct table for review (if not already there)
+                    from models import ExpiredProduct
+                    exists = ExpiredProduct.query.filter_by(product_id=p.id).first()
+                    if not exists:
+                        archived = ExpiredProduct(
+                            product_id=p.id,
+                            shop_id=p.shop_id,
+                            name=p.name,
+                            sku=p.sku,
+                            category=p.category,
+                            stock=p.stock_quantity,
+                            expiry_date=p.expiry_date
+                        )
+                        db.session.add(archived)
+            except Exception as e:
+                print(f"ERROR: Failed processing product {p.id}: {str(e)}")
+                continue
+                
+        db.session.commit()
+
+        # Now build the result for the dashboard
+        result = []
+        active_products = [p for p in products if not p.is_archived]
         
-        # Determine EARLIEST expiry date from active batches
-        earliest_batch = ProductBatch.query.filter(
-            ProductBatch.product_id == p.id,
-            ProductBatch.expiry_date != None,
-            ProductBatch.quantity > 0
-        ).order_by(ProductBatch.expiry_date.asc()).first()
-        
-        if earliest_batch:
-            p.expiry_date = earliest_batch.expiry_date
-        
-        # Automatically archive EXPIRED products
-        if p.expiry_date and p.expiry_date < today:
-            p.is_archived = True
-            # Also move to ExpiredProduct table for review (if not already there)
-            from models import ExpiredProduct
-            exists = ExpiredProduct.query.filter_by(product_id=p.id).first()
-            if not exists:
-                archived = ExpiredProduct(
-                    product_id=p.id,
-                    shop_id=p.shop_id,
-                    name=p.name,
-                    sku=p.sku,
-                    category=p.category,
-                    stock=p.stock_quantity,
-                    expiry_date=p.expiry_date
-                )
-                db.session.add(archived)
-            
-    db.session.commit()
+        for p in active_products:
+            try:
+                status = "In Stock"
+                discounted_price = None
+                
+                # Check Expiry based on earliest batch
+                if p.expiry_date:
+                    days_to_expiry = (p.expiry_date - today).days
+                    if 0 <= days_to_expiry <= 7:
+                        status = "Expiring Soon"
+                        discounted_price = p.selling_price * 0.8
 
-    # Now build the result for the dashboard
-    result = []
-    active_products = [p for p in products if not p.is_archived]
-    
-    for p in active_products:
-        status = "In Stock"
-        discounted_price = None
-        
-        # Check Expiry based on earliest batch
-        if p.expiry_date:
-            days_to_expiry = (p.expiry_date - today).days
-            if 0 <= days_to_expiry <= 7:
-                status = "Expiring Soon"
-                discounted_price = p.selling_price * 0.8
+                if p.stock_quantity <= p.reorder_level:
+                    status = "Low Stock"
 
-        if p.stock_quantity <= p.reorder_level:
-            status = "Low Stock"
+                # Pre-fetch batches for unit options to avoid N+1 and potential 500
+                unit_options_data = []
+                for opt in p.unit_options:
+                    batch = ProductBatch.query.filter_by(unit_option_id=opt.id, product_id=p.id)\
+                                        .order_by(ProductBatch.expiry_date.asc())\
+                                        .first()
+                    
+                    exp_date_str = None
+                    if batch and batch.expiry_date:
+                        try:
+                            exp_date_str = batch.expiry_date.strftime('%Y-%m-%d')
+                        except:
+                            pass
 
-        # Pre-fetch batches for unit options to avoid N+1 and potential 500
-        unit_options_data = []
-        for opt in p.unit_options:
-            batch = ProductBatch.query.filter_by(unit_option_id=opt.id, product_id=p.id)\
-                                .order_by(ProductBatch.expiry_date.asc())\
-                                .first()
-            
-            exp_date_str = None
-            if batch and batch.expiry_date:
-                try:
-                    exp_date_str = batch.expiry_date.strftime('%Y-%m-%d')
-                except:
-                    pass
+                    unit_options_data.append({
+                        "id": opt.id,
+                        "unit_type": opt.unit_type,
+                        "unit_value": opt.unit_value,
+                        "selling_price": opt.selling_price,
+                        "cost_price": opt.cost_price,
+                        "stock_quantity": opt.stock_quantity,
+                        "reorder_level": opt.reorder_level,
+                        "restock_quantity": opt.restock_quantity,
+                        "expiry_date": exp_date_str
+                    })
 
-            unit_options_data.append({
-                "id": opt.id,
-                "unit_type": opt.unit_type,
-                "unit_value": opt.unit_value,
-                "selling_price": opt.selling_price,
-                "cost_price": opt.cost_price,
-                "stock_quantity": opt.stock_quantity,
-                "reorder_level": opt.reorder_level,
-                "restock_quantity": opt.restock_quantity,
-                "expiry_date": exp_date_str
-            })
+                result.append({
+                    "id": p.id,
+                    "name": p.name,
+                    "sku": p.sku,
+                    "category": p.category,
+                    "stock": p.stock_quantity,
+                    "price": p.selling_price,
+                    "discounted_price": discounted_price,
+                    "expiry_date": p.expiry_date.strftime('%Y-%m-%d') if p.expiry_date else None,
+                    "status": status,
+                    "qr_code": p.qr_code,
+                    "unit_options": unit_options_data
+                })
+            except Exception as e:
+                print(f"ERROR: Failed serializing product {p.id}: {str(e)}")
+                continue
 
-        result.append({
-            "id": p.id,
-            "name": p.name,
-            "sku": p.sku,
-            "category": p.category,
-            "stock": p.stock_quantity,
-            "price": p.selling_price,
-            "discounted_price": discounted_price,
-            "expiry_date": p.expiry_date.strftime('%Y-%m-%d') if p.expiry_date else None,
-            "status": status,
-            "qr_code": p.qr_code,
-            "unit_options": unit_options_data
-        })
-    return jsonify(result), 200
+        return jsonify(result), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"message": f"Server error: {str(e)}"}), 500
 
 @inventory_bp.route('/history', methods=['GET'])
 @jwt_required()
