@@ -489,8 +489,6 @@ def get_products():
     if not shop_id:
         return jsonify([]), 200
         
-    from models import ProductBatch
-    
     # 1. Fetch ALL products (that are not archived)
     products = Product.query.filter_by(shop_id=shop_id, is_archived=False).all()
     today = datetime.now().date()
@@ -500,14 +498,36 @@ def get_products():
         # Check if variations exist
         if p.unit_options:
             for opt in p.unit_options:
-                batch_sum = db.session.query(db.func.sum(ProductBatch.quantity)).filter_by(unit_option_id=opt.id).scalar() or 0
-                if opt.stock_quantity != batch_sum:
-                    opt.stock_quantity = batch_sum
+                batches = ProductBatch.query.filter_by(unit_option_id=opt.id).all()
+                if not batches and opt.stock_quantity > 0:
+                    # Create a default batch for existing stock to prevent it being reset to 0
+                    new_batch = ProductBatch(
+                        product_id=p.id,
+                        unit_option_id=opt.id,
+                        quantity=opt.stock_quantity,
+                        expiry_date=p.expiry_date
+                    )
+                    db.session.add(new_batch)
+                else:
+                    batch_sum = sum(b.quantity for b in batches)
+                    if opt.stock_quantity != batch_sum:
+                        opt.stock_quantity = batch_sum
             p.stock_quantity = sum(o.stock_quantity for o in p.unit_options)
         else:
-            batch_sum = db.session.query(db.func.sum(ProductBatch.quantity)).filter_by(product_id=p.id, unit_option_id=None).scalar() or 0
-            if p.stock_quantity != batch_sum:
-                p.stock_quantity = batch_sum
+            batches = ProductBatch.query.filter_by(product_id=p.id, unit_option_id=None).all()
+            if not batches and p.stock_quantity > 0:
+                # Create a default batch for existing stock
+                new_batch = ProductBatch(
+                    product_id=p.id,
+                    unit_option_id=None,
+                    quantity=p.stock_quantity,
+                    expiry_date=p.expiry_date
+                )
+                db.session.add(new_batch)
+            else:
+                batch_sum = sum(b.quantity for b in batches)
+                if p.stock_quantity != batch_sum:
+                    p.stock_quantity = batch_sum
         
         # Determine EARLIEST expiry date from active batches
         earliest_batch = ProductBatch.query.filter(
@@ -557,6 +577,32 @@ def get_products():
         if p.stock_quantity <= p.reorder_level:
             status = "Low Stock"
 
+        # Pre-fetch batches for unit options to avoid N+1 and potential 500
+        unit_options_data = []
+        for opt in p.unit_options:
+            batch = ProductBatch.query.filter_by(unit_option_id=opt.id, product_id=p.id)\
+                                .order_by(ProductBatch.expiry_date.asc())\
+                                .first()
+            
+            exp_date_str = None
+            if batch and batch.expiry_date:
+                try:
+                    exp_date_str = batch.expiry_date.strftime('%Y-%m-%d')
+                except:
+                    pass
+
+            unit_options_data.append({
+                "id": opt.id,
+                "unit_type": opt.unit_type,
+                "unit_value": opt.unit_value,
+                "selling_price": opt.selling_price,
+                "cost_price": opt.cost_price,
+                "stock_quantity": opt.stock_quantity,
+                "reorder_level": opt.reorder_level,
+                "restock_quantity": opt.restock_quantity,
+                "expiry_date": exp_date_str
+            })
+
         result.append({
             "id": p.id,
             "name": p.name,
@@ -568,19 +614,7 @@ def get_products():
             "expiry_date": p.expiry_date.strftime('%Y-%m-%d') if p.expiry_date else None,
             "status": status,
             "qr_code": p.qr_code,
-            "unit_options": [{
-                "id": opt.id,
-                "unit_type": opt.unit_type,
-                "unit_value": opt.unit_value,
-                "selling_price": opt.selling_price,
-                "cost_price": opt.cost_price,
-                "stock_quantity": opt.stock_quantity,
-                "reorder_level": opt.reorder_level,
-                "restock_quantity": opt.restock_quantity,
-                "expiry_date": (ProductBatch.query.filter_by(unit_option_id=opt.id, product_id=p.id)
-                                .order_by(ProductBatch.expiry_date.asc())
-                                .first().expiry_date.strftime('%Y-%m-%d') if ProductBatch.query.filter_by(unit_option_id=opt.id, product_id=p.id).first() else None)
-            } for opt in p.unit_options]
+            "unit_options": unit_options_data
         })
     return jsonify(result), 200
 
