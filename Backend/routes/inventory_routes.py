@@ -1161,6 +1161,10 @@ def restock_expired_direct(expired_id):
         quantity=qty,
         date=datetime.utcnow()
     )
+    if product.unit_options:
+        new_tx.unit_type = product.unit_options[0].unit_type
+        new_tx.unit_value = product.unit_options[0].unit_value
+    
     db.session.add(new_tx)
     
     # Remove from expired list
