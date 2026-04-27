@@ -1040,12 +1040,22 @@ def email_restock_for_expired(expired_id):
     if existing_req:
         return jsonify({"message": "An active restock request already exists for this product"}), 400
 
-    # Create a SupplyRequest for the archived product's ID (which corresponds to its original Product ID)
+    # Create a SupplyRequest for the archived product's ID
+    product = Product.query.get(archived.product_id)
+    unit_type = None
+    unit_value = None
+    if product and product.unit_options:
+        unit_type = product.unit_options[0].unit_type
+        unit_value = product.unit_options[0].unit_value
+
     new_req = SupplyRequest(
         shop_id=shop.id,
         product_id=archived.product_id,
         quantity_needed=qty,
-        reason=f"Expired Product (archived on {archived.archived_at.strftime('%Y-%m-%d')})"
+        unit_type=unit_type,
+        unit_value=unit_value,
+        reason=f"Expired Product (archived on {archived.archived_at.strftime('%Y-%m-%d')})",
+        status='Pending'
     )
     db.session.add(new_req)
     db.session.commit()
@@ -1064,7 +1074,7 @@ def email_restock_for_expired(expired_id):
                     A restock request has been generated for an expired item:
                     Shop: {shop.name}
                     Product: {archived.name} (SKU: {archived.sku})
-                    Quantity Needed: {qty}
+                    Quantity Needed: {qty} {unit_value if unit_value else ''} {unit_type if unit_type else ''}
                     
                     Please login to the Supplier Portal to submit your quote.
                     """
@@ -1086,7 +1096,7 @@ def email_restock_for_expired(expired_id):
                     A restock request has been generated for an expired item:
                     Shop: {shop.name}
                     Product: {archived.name} (SKU: {archived.sku})
-                    Quantity Needed: {qty}
+                    Quantity Needed: {qty} {unit_value if unit_value else ''} {unit_type if unit_type else ''}
                     
                     Please login to the Supplier Portal to submit your quote.
                     """
