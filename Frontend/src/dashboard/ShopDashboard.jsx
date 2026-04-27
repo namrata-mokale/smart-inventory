@@ -851,6 +851,38 @@ const ShopDashboard = () => {
   const handleRestock = async (expiredId) => {
       const qty = parseInt(restockQty[expiredId] || '0');
       if (!qty || qty <= 0) { alert('Enter a valid quantity'); return; }
+
+      // Ask for restock type
+      const restockType = window.confirm("Click OK for Direct Restock (adds stock immediately) or Cancel to send Restock Request to Suppliers.") 
+          ? 'direct' 
+          : 'request';
+
+      if (restockType === 'direct') {
+          const newExpiry = window.prompt("Enter new expiry date (YYYY-MM-DD):", new Date(Date.now() + 180*24*60*60*1000).toISOString().split('T')[0]);
+          if (!newExpiry) return;
+
+          try {
+              const res = await fetch(`${API_BASE_URL}/inventory/expired/${expiredId}/restock-direct`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  body: JSON.stringify({ quantity: qty, expiry_date: newExpiry })
+              });
+              const data = await res.json();
+              if (res.ok) {
+                  alert(data.message || 'Restocked successfully');
+                  fetchExpired();
+                  fetchProducts();
+                  setRestockQty({ ...restockQty, [expiredId]: '' });
+              } else {
+                  alert(`Failed: ${data.message}`);
+              }
+          } catch (e) {
+              alert('Network error');
+          }
+          return;
+      }
+
+      // Fallback to Request Restock (original logic)
       try {
           const res = await fetch(`${API_BASE_URL}/inventory/expired/${expiredId}/restock-email`, {
               method: 'POST',

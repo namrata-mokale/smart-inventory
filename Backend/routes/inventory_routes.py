@@ -1096,6 +1096,64 @@ def email_restock_for_expired(expired_id):
                     pass
 
     return jsonify({"message": "Restock request created and relevant suppliers notified"}), 200
+
+@inventory_bp.route('/expired/<int:expired_id>/restock-direct', methods=['POST'])
+@jwt_required()
+def restock_expired_direct(expired_id):
+    current_user = get_jwt_identity()
+    shop = Shop.query.filter_by(owner_id=current_user['id']).first()
+    if not shop:
+        return jsonify({"message": "Shop not found"}), 404
+    
+    body = request.get_json() or {}
+    try:
+        qty = int(body.get('quantity', 0))
+    except:
+        return jsonify({"message": "Invalid quantity"}), 400
+        
+    expiry_date_str = body.get('expiry_date')
+    
+    if qty <= 0:
+        return jsonify({"message": "Quantity must be positive"}), 400
+    
+    expired_entry = ExpiredProduct.query.filter_by(id=expired_id, shop_id=shop.id).first()
+    if not expired_entry:
+        return jsonify({"message": "Expired item not found"}), 404
+    
+    product = Product.query.get(expired_entry.product_id)
+    if not product:
+        return jsonify({"message": "Original product not found"}), 404
+    
+    # Update product
+    product.stock_quantity = qty
+    product.is_archived = False
+    if expiry_date_str:
+        try:
+            product.expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
+        except:
+            return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
+    
+    # If product has variations, we'll update the first one's stock too for consistency
+    if product.unit_options:
+        product.unit_options[0].stock_quantity = qty
+    
+    # Add a transaction record
+    from models import Transaction
+    new_tx = Transaction(
+        product_id=product.id,
+        shop_id=shop.id,
+        transaction_type='RESTOCK',
+        quantity=qty,
+        date=datetime.utcnow()
+    )
+    db.session.add(new_tx)
+    
+    # Remove from expired list
+    db.session.delete(expired_entry)
+    
+    db.session.commit()
+    
+    return jsonify({"message": "Product restocked successfully and moved to inventory"}), 200
 @inventory_bp.route('/expired/<int:expired_id>/sales', methods=['GET'])
 @jwt_required()
 def sales_for_expired(expired_id):
