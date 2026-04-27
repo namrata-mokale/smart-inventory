@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Product, Shop, Transaction, SupplyRequest, Supplier, SupplierBill, SupplierCatalog, ExpiredProduct, SupplierQuote, User, Salesman, ProductUnitOption, BirthdayOffer
+from models import db, Product, Shop, Transaction, SupplyRequest, Supplier, SupplierBill, SupplierCatalog, ExpiredProduct, SupplierQuote, User, Salesman, ProductUnitOption, BirthdayOffer, ProductBatch
 from services.notification_service import send_email, send_sms
 from services.matching_service import find_catalog_match
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -1127,18 +1127,33 @@ def restock_expired_direct(expired_id):
     # Update product
     product.stock_quantity = qty
     product.is_archived = False
+    new_expiry_date = None
     if expiry_date_str:
         try:
-            product.expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
+            new_expiry_date = datetime.strptime(expiry_date_str, '%Y-%m-%d').date()
+            product.expiry_date = new_expiry_date
         except:
             return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
     
     # If product has variations, we'll update the first one's stock too for consistency
+    unit_option_id = None
     if product.unit_options:
         product.unit_options[0].stock_quantity = qty
+        unit_option_id = product.unit_options[0].id
+        # Reset other variations to 0 if they were expired
+        for i in range(1, len(product.unit_options)):
+            product.unit_options[i].stock_quantity = 0
+    
+    # Create a ProductBatch record (Essential because get_inventory syncs stock from batches)
+    new_batch = ProductBatch(
+        product_id=product.id,
+        unit_option_id=unit_option_id,
+        quantity=qty,
+        expiry_date=new_expiry_date
+    )
+    db.session.add(new_batch)
     
     # Add a transaction record
-    from models import Transaction
     new_tx = Transaction(
         product_id=product.id,
         shop_id=shop.id,
