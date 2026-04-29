@@ -558,7 +558,7 @@ def get_products():
                             name=p.name,
                             sku=p.sku,
                             category=p.category,
-                            stock=p.stock_quantity,
+                            stock_at_expiry=p.stock_quantity,
                             expiry_date=p.expiry_date
                         )
                         db.session.add(archived)
@@ -1092,31 +1092,51 @@ def email_restock_for_expired(expired_id):
     if existing_req:
         return jsonify({"message": "An active restock request already exists for this product"}), 400
 
-    # Create a SupplyRequest for the archived product's ID
+    # Create SupplyRequests for the archived product's ID
     product = Product.query.get(archived.product_id)
-    unit_type = None
-    unit_value = None
-    if product and product.unit_options:
-        unit_type = product.unit_options[0].unit_type
-        unit_value = product.unit_options[0].unit_value
+    requests_created = []
 
-    new_req = SupplyRequest(
-        shop_id=shop.id,
-        product_id=archived.product_id,
-        quantity_needed=qty,
-        unit_type=unit_type,
-        unit_value=unit_value,
-        reason=f"Expired Product (archived on {archived.archived_at.strftime('%Y-%m-%d')})",
-        status='Pending'
-    )
-    db.session.add(new_req)
+    if product and product.unit_options:
+        for opt in product.unit_options:
+            new_req = SupplyRequest(
+                shop_id=shop.id,
+                product_id=archived.product_id,
+                quantity_needed=qty,
+                unit_type=opt.unit_type,
+                unit_value=opt.unit_value,
+                reason=f"Expired Product (archived on {archived.archived_at.strftime('%Y-%m-%d')})",
+                status='Pending'
+            )
+            db.session.add(new_req)
+            requests_created.append(new_req)
+    else:
+        new_req = SupplyRequest(
+            shop_id=shop.id,
+            product_id=archived.product_id,
+            quantity_needed=qty,
+            unit_type=None,
+            unit_value=None,
+            reason=f"Expired Product (archived on {archived.archived_at.strftime('%Y-%m-%d')})",
+            status='Pending'
+        )
+        db.session.add(new_req)
+        requests_created.append(new_req)
+
     db.session.commit()
 
     # Notify all linked suppliers who have this product SKU in their catalog
     notified = 0
-    if getattr(shop, 'suppliers', None):
-        for s in shop.suppliers:
-            # Check if supplier has this product in catalog using flexible matching
+    
+    # Prepare details for email
+    variation_details = ""
+    if product and product.unit_options:
+        variation_details = "\nVariations Requested:\n" + "\n".join([f"- {opt.unit_value} {opt.unit_type}: {qty} units" for opt in product.unit_options])
+    else:
+        variation_details = f"\nQuantity Needed: {qty} units"
+
+    def notify_suppliers(supplier_list):
+        count = 0
+        for s in supplier_list:
             in_catalog = find_catalog_match(s.id, archived.sku, archived.name)
             if in_catalog and s.user and s.user.email:
                 try:
@@ -1126,38 +1146,25 @@ def email_restock_for_expired(expired_id):
                     A restock request has been generated for an expired item:
                     Shop: {shop.name}
                     Product: {archived.name} (SKU: {archived.sku})
-                    Quantity Needed: {qty} {unit_value if unit_value else ''} {unit_type if unit_type else ''}
+                    {variation_details}
                     
                     Please login to the Supplier Portal to submit your quote.
                     """
                     send_email(s.user.email, "Restock Request - Expired Item", content)
-                    notified += 1
+                    count += 1
                 except Exception:
                     pass
+        return count
+
+    if getattr(shop, 'suppliers', None):
+        notified = notify_suppliers(shop.suppliers)
 
     if notified == 0:
         # Fallback: check ALL suppliers who have this in their catalog
         all_suppliers = Supplier.query.all()
-        for s in all_suppliers:
-            in_catalog = find_catalog_match(s.id, archived.sku, archived.name)
-            if in_catalog and s.user and s.user.email:
-                try:
-                    content = f"""
-                    Dear {s.contact_person or 'Supplier'},
-                    
-                    A restock request has been generated for an expired item:
-                    Shop: {shop.name}
-                    Product: {archived.name} (SKU: {archived.sku})
-                    Quantity Needed: {qty} {unit_value if unit_value else ''} {unit_type if unit_type else ''}
-                    
-                    Please login to the Supplier Portal to submit your quote.
-                    """
-                    send_email(s.user.email, "Restock Request - Expired Item", content)
-                    notified += 1
-                except Exception:
-                    pass
+        notified = notify_suppliers(all_suppliers)
 
-    return jsonify({"message": "Restock request created and relevant suppliers notified"}), 200
+    return jsonify({"message": f"Restock requests created for all variations and {notified} suppliers notified"}), 200
 
 @inventory_bp.route('/expired/<int:expired_id>/restock-direct', methods=['POST'])
 @jwt_required()
