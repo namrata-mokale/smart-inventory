@@ -492,81 +492,82 @@ def get_products():
         if not shop_id:
             return jsonify([]), 200
             
-        # 1. Fetch ALL products (that are not archived)
-        products = Product.query.filter_by(shop_id=shop_id, is_archived=False).all()
-        today = datetime.now().date()
-        
-        print(f"DEBUG: Found {len(products)} products for shop {shop_id}")
-        
-        # 2. Re-calculate main stock_quantity from batches to ensure sync
-        for p in products:
-            try:
-                # Check if variations exist
-                if p.unit_options:
-                    for opt in p.unit_options:
-                        batches = ProductBatch.query.filter_by(unit_option_id=opt.id).all()
-                        if not batches and opt.stock_quantity > 0:
-                            # Create a default batch for existing stock to prevent it being reset to 0
-                            new_batch = ProductBatch(
-                                product_id=p.id,
-                                unit_option_id=opt.id,
-                                quantity=opt.stock_quantity,
-                                expiry_date=p.expiry_date
-                            )
-                            db.session.add(new_batch)
+                # 1. Fetch ALL products (that are not archived)
+                products = Product.query.filter_by(shop_id=shop_id, is_archived=False).all()
+                today = datetime.now().date()
+                
+                print(f"DEBUG: Found {len(products)} products for shop {shop_id}")
+                
+                # 2. Sync batches and handle potential missing batches
+                for p in products:
+                    try:
+                        # Determine if we should force a sync from batches
+                        # If a product has stock but NO batches, we create a default batch to prevent data loss
+                        if p.unit_options:
+                            for opt in p.unit_options:
+                                batches = ProductBatch.query.filter_by(unit_option_id=opt.id).all()
+                                if not batches and opt.stock_quantity > 0:
+                                    new_batch = ProductBatch(
+                                        product_id=p.id,
+                                        unit_option_id=opt.id,
+                                        quantity=opt.stock_quantity,
+                                        expiry_date=p.expiry_date
+                                    )
+                                    db.session.add(new_batch)
+                                elif batches:
+                                    batch_sum = sum(b.quantity for b in batches)
+                                    if opt.stock_quantity != batch_sum:
+                                        opt.stock_quantity = batch_sum
+                            p.stock_quantity = sum(o.stock_quantity for o in p.unit_options)
                         else:
-                            batch_sum = sum(b.quantity for b in batches)
-                            if opt.stock_quantity != batch_sum:
-                                opt.stock_quantity = batch_sum
-                    p.stock_quantity = sum(o.stock_quantity for o in p.unit_options)
-                else:
-                    batches = ProductBatch.query.filter_by(product_id=p.id, unit_option_id=None).all()
-                    if not batches and p.stock_quantity > 0:
-                        # Create a default batch for existing stock
-                        new_batch = ProductBatch(
-                            product_id=p.id,
-                            unit_option_id=None,
-                            quantity=p.stock_quantity,
-                            expiry_date=p.expiry_date
-                        )
-                        db.session.add(new_batch)
-                    else:
-                        batch_sum = sum(b.quantity for b in batches)
-                        if p.stock_quantity != batch_sum:
-                            p.stock_quantity = batch_sum
+                            batches = ProductBatch.query.filter_by(product_id=p.id, unit_option_id=None).all()
+                            if not batches and p.stock_quantity > 0:
+                                new_batch = ProductBatch(
+                                    product_id=p.id,
+                                    unit_option_id=None,
+                                    quantity=p.stock_quantity,
+                                    expiry_date=p.expiry_date
+                                )
+                                db.session.add(new_batch)
+                            elif batches:
+                                batch_sum = sum(b.quantity for b in batches)
+                                if p.stock_quantity != batch_sum:
+                                    p.stock_quantity = batch_sum
+                        
+                        # Update primary expiry date from earliest active batch
+                        earliest_batch = ProductBatch.query.filter(
+                            ProductBatch.product_id == p.id,
+                            ProductBatch.expiry_date != None,
+                            ProductBatch.quantity > 0
+                        ).order_by(ProductBatch.expiry_date.asc()).first()
+                        
+                        if earliest_batch:
+                            p.expiry_date = earliest_batch.expiry_date
+                        
+                        # Check for expiry and auto-archive
+                        if p.expiry_date and p.expiry_date < today:
+                            p.is_archived = True
+                            from models import ExpiredProduct
+                            exists = ExpiredProduct.query.filter_by(product_id=p.id, expiry_date=p.expiry_date).first()
+                            if not exists:
+                                archived = ExpiredProduct(
+                                    product_id=p.id,
+                                    shop_id=p.shop_id,
+                                    name=p.name,
+                                    sku=p.sku,
+                                    category=p.category,
+                                    stock_at_expiry=p.stock_quantity,
+                                    expiry_date=p.expiry_date
+                                )
+                                db.session.add(archived)
+                    except Exception as e:
+                        print(f"ERROR: Sync failed for product {p.id}: {str(e)}")
+                        continue
                 
-                # Determine EARLIEST expiry date from active batches
-                earliest_batch = ProductBatch.query.filter(
-                    ProductBatch.product_id == p.id,
-                    ProductBatch.expiry_date != None,
-                    ProductBatch.quantity > 0
-                ).order_by(ProductBatch.expiry_date.asc()).first()
+                db.session.commit()
                 
-                if earliest_batch:
-                    p.expiry_date = earliest_batch.expiry_date
-                
-                # Automatically archive EXPIRED products
-                if p.expiry_date and p.expiry_date < today:
-                    p.is_archived = True
-                    # Also move to ExpiredProduct table for review (if not already there)
-                    from models import ExpiredProduct
-                    exists = ExpiredProduct.query.filter_by(product_id=p.id).first()
-                    if not exists:
-                        archived = ExpiredProduct(
-                            product_id=p.id,
-                            shop_id=p.shop_id,
-                            name=p.name,
-                            sku=p.sku,
-                            category=p.category,
-                            stock_at_expiry=p.stock_quantity,
-                            expiry_date=p.expiry_date
-                        )
-                        db.session.add(archived)
-            except Exception as e:
-                print(f"ERROR: Failed processing product {p.id}: {str(e)}")
-                continue
-                
-        db.session.commit()
+                # Fetch fresh list of non-archived products after sync
+                products = Product.query.filter_by(shop_id=shop_id, is_archived=False).all()
 
         # Now build the result for the dashboard
         result = []
