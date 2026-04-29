@@ -1055,8 +1055,22 @@ def get_expired_products():
         sales = Transaction.query.filter_by(product_id=p.product_id, shop_id=shop_id, transaction_type='SALE').all()
         qty = sum(s.quantity for s in sales)
         last_sale = max((s.date for s in sales), default=None)
+        
+        # Fetch variations for this product so user can set individual restock quantities
+        product_obj = Product.query.get(p.product_id)
+        unit_options = []
+        if product_obj and product_obj.unit_options:
+            for opt in product_obj.unit_options:
+                unit_options.append({
+                    "id": opt.id,
+                    "unit_type": opt.unit_type,
+                    "unit_value": opt.unit_value,
+                    "stock_quantity": opt.stock_quantity
+                })
+
         result.append({
             "id": p.id,
+            "product_id": p.product_id,
             "name": p.name,
             "sku": p.sku,
             "category": p.category,
@@ -1064,7 +1078,8 @@ def get_expired_products():
             "expiry_date": p.expiry_date.strftime('%Y-%m-%d') if p.expiry_date else None,
             "shelf_life_days": p.shelf_life_days,
             "total_sold": qty,
-            "last_sale": last_sale.strftime('%Y-%m-%d %H:%M:%S') if last_sale else None
+            "last_sale": last_sale.strftime('%Y-%m-%d %H:%M:%S') if last_sale else None,
+            "unit_options": unit_options
         })
     return jsonify(result), 200
 
@@ -1075,10 +1090,12 @@ def email_restock_for_expired(expired_id):
     shop = Shop.query.filter_by(owner_id=current_user['id']).first()
     if not shop:
         return jsonify({"message": "Shop not found"}), 404
+    
     body = request.get_json() or {}
-    qty = int(body.get('quantity', 0))
-    if qty <= 0:
-        return jsonify({"message": "Quantity must be positive"}), 400
+    # Supporting both old 'quantity' (global) and new 'variations' (specific)
+    global_qty = body.get('quantity')
+    variation_qtys = body.get('variations') # List of {unit_option_id: int, quantity: int}
+
     archived = ExpiredProduct.query.filter_by(id=expired_id, shop_id=shop.id).first()
     if not archived:
         return jsonify({"message": "Expired item not found"}), 404
@@ -1099,29 +1116,48 @@ def email_restock_for_expired(expired_id):
 
     if product and product.unit_options:
         for opt in product.unit_options:
+            # Determine quantity for this specific variation
+            qty_to_request = 0
+            if variation_qtys:
+                # Find matching qty from body
+                match = next((v for v in variation_qtys if int(v.get('unit_option_id')) == opt.id), None)
+                if match:
+                    try:
+                        qty_to_request = int(match.get('quantity', 0))
+                    except:
+                        qty_to_request = 0
+            elif global_qty:
+                qty_to_request = int(global_qty)
+            
+            if qty_to_request > 0:
+                new_req = SupplyRequest(
+                    shop_id=shop.id,
+                    product_id=archived.product_id,
+                    quantity_needed=qty_to_request,
+                    unit_type=opt.unit_type,
+                    unit_value=opt.unit_value,
+                    reason=f"Expired Product (archived on {archived.archived_at.strftime('%Y-%m-%d')})",
+                    status='Pending'
+                )
+                db.session.add(new_req)
+                requests_created.append(new_req)
+    else:
+        qty = int(global_qty or 0)
+        if qty > 0:
             new_req = SupplyRequest(
                 shop_id=shop.id,
                 product_id=archived.product_id,
                 quantity_needed=qty,
-                unit_type=opt.unit_type,
-                unit_value=opt.unit_value,
+                unit_type=None,
+                unit_value=None,
                 reason=f"Expired Product (archived on {archived.archived_at.strftime('%Y-%m-%d')})",
                 status='Pending'
             )
             db.session.add(new_req)
             requests_created.append(new_req)
-    else:
-        new_req = SupplyRequest(
-            shop_id=shop.id,
-            product_id=archived.product_id,
-            quantity_needed=qty,
-            unit_type=None,
-            unit_value=None,
-            reason=f"Expired Product (archived on {archived.archived_at.strftime('%Y-%m-%d')})",
-            status='Pending'
-        )
-        db.session.add(new_req)
-        requests_created.append(new_req)
+
+    if not requests_created:
+        return jsonify({"message": "No valid quantities provided for restock"}), 400
 
     db.session.commit()
 
@@ -1130,10 +1166,8 @@ def email_restock_for_expired(expired_id):
     
     # Prepare details for email
     variation_details = ""
-    if product and product.unit_options:
-        variation_details = "\nVariations Requested:\n" + "\n".join([f"- {opt.unit_value} {opt.unit_type}: {qty} units" for opt in product.unit_options])
-    else:
-        variation_details = f"\nQuantity Needed: {qty} units"
+    if requests_created:
+        variation_details = "\nVariations Requested:\n" + "\n".join([f"- {r.unit_value} {r.unit_type}: {r.quantity_needed} units" if r.unit_type else f"- Quantity: {r.quantity_needed} units" for r in requests_created])
 
     def notify_suppliers(supplier_list):
         count = 0
@@ -1165,7 +1199,7 @@ def email_restock_for_expired(expired_id):
         all_suppliers = Supplier.query.all()
         notified = notify_suppliers(all_suppliers)
 
-    return jsonify({"message": f"Restock requests created for all variations and {notified} suppliers notified"}), 200
+    return jsonify({"message": f"Restock requests created for {len(requests_created)} items and {notified} suppliers notified"}), 200
 
 @inventory_bp.route('/expired/<int:expired_id>/restock-direct', methods=['POST'])
 @jwt_required()

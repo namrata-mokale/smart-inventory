@@ -24,7 +24,7 @@ const ShopDashboard = () => {
   const [linkedSuppliers, setLinkedSuppliers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [expired, setExpired] = useState([]);
-  const [restockQty, setRestockQty] = useState({});
+  const [restockQty, setRestockQty] = useState({}); // { expiredId_unitId: quantity }
   const [salesSummary, setSalesSummary] = useState([]);
   const [dailySales, setDailySales] = useState([]);
   const [dailyForProduct, setDailyForProduct] = useState(null);
@@ -848,15 +848,23 @@ const ShopDashboard = () => {
       }
   };
 
-  const handleRestock = async (expiredId) => {
-      const qty = parseInt(restockQty[expiredId] || '0');
-      if (!qty || qty <= 0) { alert('Enter a valid quantity'); return; }
+  const handleRestock = async (expiredItem) => {
+      const expiredId = expiredItem.id;
+      const variations = expiredItem.unit_options.map(opt => ({
+          unit_option_id: opt.id,
+          quantity: parseInt(restockQty[`${expiredId}_${opt.id}`] || '0')
+      })).filter(v => v.quantity > 0);
+
+      if (variations.length === 0) {
+          alert('Please enter a quantity for at least one variation');
+          return;
+      }
 
       try {
           const res = await fetch(`${API_BASE_URL}/inventory/expired/${expiredId}/restock-email`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ quantity: qty })
+              body: JSON.stringify({ variations })
           });
           let msg = res.statusText;
           try {
@@ -866,7 +874,12 @@ const ShopDashboard = () => {
           if (res.ok) {
               alert(msg || 'Restock request sent to suppliers. Stock will update once they deliver.');
               fetchExpired();
-              setRestockQty({ ...restockQty, [expiredId]: '' });
+              // Clear inputs for this item
+              const newRestockQty = { ...restockQty };
+              expiredItem.unit_options.forEach(opt => {
+                  delete newRestockQty[`${expiredId}_${opt.id}`];
+              });
+              setRestockQty(newRestockQty);
           } else {
               alert(`Failed: ${msg}`);
           }
@@ -1248,10 +1261,35 @@ const ShopDashboard = () => {
                               </button>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center space-x-2">
-                                <input type="number" min="1" className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" value={restockQty[p.id] || ''} onChange={e=>setRestockQty({...restockQty, [p.id]: e.target.value})} />
-                                <button onClick={() => handleRestock(p.id)} className="bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 text-sm font-medium">Restock</button>
-                                <button onClick={() => handleNotRestock(p.id)} className="bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-300 text-sm font-medium">Do Not Restock</button>
+                              <div className="flex flex-col space-y-2">
+                                {p.unit_options && p.unit_options.length > 0 ? (
+                                  p.unit_options.map(opt => (
+                                    <div key={opt.id} className="flex items-center space-x-2">
+                                      <span className="text-[10px] w-16 text-gray-500 font-bold uppercase">{opt.unit_value} {opt.unit_type}</span>
+                                      <input 
+                                        type="number" 
+                                        min="0" 
+                                        placeholder="Qty"
+                                        className="w-16 border border-gray-300 rounded px-2 py-1 text-xs" 
+                                        value={restockQty[`${p.id}_${opt.id}`] || ''} 
+                                        onChange={e => setRestockQty({...restockQty, [`${p.id}_${opt.id}`]: e.target.value})} 
+                                      />
+                                    </div>
+                                  ))
+                                ) : (
+                                  <input 
+                                    type="number" 
+                                    min="1" 
+                                    placeholder="Qty"
+                                    className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" 
+                                    value={restockQty[p.id] || ''} 
+                                    onChange={e => setRestockQty({...restockQty, [p.id]: e.target.value})} 
+                                  />
+                                )}
+                                <div className="flex space-x-2 mt-1">
+                                  <button onClick={() => handleRestock(p)} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-xs font-medium">Restock</button>
+                                  <button onClick={() => handleNotRestock(p.id)} className="bg-gray-200 text-gray-800 px-2 py-1 rounded hover:bg-gray-300 text-xs font-medium">Ignore</button>
+                                </div>
                               </div>
                             </td>
                           </tr>
