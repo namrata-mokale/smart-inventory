@@ -63,12 +63,18 @@ def create_app():
             print("INFO: Syncing legacy GST rates...")
             from models import SupplierQuote, SupplierBill, Transaction
             
-            # Quotes
-            db.session.execute(text("UPDATE supplier_quotes SET gst_rate = ROUND(gst_amount / total, 4) WHERE total > 0 AND gst_rate = 0.18"))
-            # Bills
-            db.session.execute(text("UPDATE supplier_bills SET gst_rate = ROUND(gst_amount / total, 4) WHERE total > 0 AND gst_rate = 0.18"))
-            # Transactions
-            db.session.execute(text("UPDATE transactions SET gst_rate = ROUND(gst_amount / (quantity * unit_price), 4) WHERE (quantity * unit_price) > 0 AND gst_rate = 0.18"))
+            is_postgres = 'postgresql' in str(db.engine.url)
+            
+            if is_postgres:
+                # PostgreSQL requires explicit cast to numeric for ROUND(val, precision)
+                db.session.execute(text("UPDATE supplier_quotes SET gst_rate = ROUND((gst_amount / total)::numeric, 4) WHERE total > 0 AND gst_rate = 0.18"))
+                db.session.execute(text("UPDATE supplier_bills SET gst_rate = ROUND((gst_amount / total)::numeric, 4) WHERE total > 0 AND gst_rate = 0.18"))
+                db.session.execute(text("UPDATE transactions SET gst_rate = ROUND((gst_amount / (quantity * unit_price))::numeric, 4) WHERE (quantity * unit_price) > 0 AND gst_rate = 0.18"))
+            else:
+                # SQLite / Other
+                db.session.execute(text("UPDATE supplier_quotes SET gst_rate = ROUND(gst_amount / total, 4) WHERE total > 0 AND gst_rate = 0.18"))
+                db.session.execute(text("UPDATE supplier_bills SET gst_rate = ROUND(gst_amount / total, 4) WHERE total > 0 AND gst_rate = 0.18"))
+                db.session.execute(text("UPDATE transactions SET gst_rate = ROUND(gst_amount / (quantity * unit_price), 4) WHERE (quantity * unit_price) > 0 AND gst_rate = 0.18"))
             
             db.session.commit()
             print("SUCCESS: Legacy GST rates synchronized.")
